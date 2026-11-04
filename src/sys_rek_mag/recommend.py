@@ -37,8 +37,12 @@ def dense_scores(history: sparse.csr_matrix, embeddings: np.ndarray) -> np.ndarr
 
 
 def tfidf_scores(history: sparse.csr_matrix, tfidf: sparse.csr_matrix) -> np.ndarray:
-    """Cosinus średniego profilu TF-IDF (L2-normalizowanego) z wektorami TF-IDF produktów."""
-    return _cosine(mean_profiles(history, tfidf), tfidf)
+    """Cosinus średniego profilu TF-IDF z wektorami TF-IDF produktów, liczony rzadko.
+
+    Cosinus nie zależy od skali, więc suma wektorów historii daje to samo co średnia."""
+    if (np.asarray(history.sum(axis=1)).ravel() == 0).any():
+        raise ValueError("Każdy użytkownik musi mieć co najmniej jeden produkt w historii")
+    return np.asarray((normalize(history @ tfidf) @ normalize(tfidf).T).toarray(), dtype=np.float64)
 
 
 def popularity_scores(n_users: int, counts: np.ndarray) -> np.ndarray:

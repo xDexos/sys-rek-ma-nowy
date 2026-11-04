@@ -93,3 +93,17 @@ def test_cosine_scores_bounded_and_query_matches_profile():
 def test_popularity_scores():
     out = popularity_scores(3, np.array([0, 1, 9]))
     assert out.shape == (3, 3) and out[2].tolist() == pytest.approx(np.log1p([0, 1, 9]).tolist())
+
+
+def test_tfidf_scores_match_dense_cosine_of_mean_profile():
+    tfidf = TfidfVectorizer().fit_transform(TEXTS).tocsr()
+    history = sparse.csr_matrix(np.array([[1, 1, 0, 0, 0, 0], [0, 0, 1, 0, 1, 1]], dtype=float))
+    dense = tfidf.toarray()
+    profiles = (history.toarray() @ dense) / history.sum(axis=1).A
+    expected = normalize_rows(profiles) @ normalize_rows(dense).T
+    scores = tfidf_scores(history, tfidf)
+    assert isinstance(scores, np.ndarray) and scores == pytest.approx(expected)
+    valid = np.ones((2, 6), dtype=bool)
+    assert (top_k(scores, valid, 6)[0] == top_k(expected, valid, 6)[0]).all()
+    with pytest.raises(ValueError):
+        tfidf_scores(sparse.csr_matrix(np.zeros((1, 6))), tfidf)
