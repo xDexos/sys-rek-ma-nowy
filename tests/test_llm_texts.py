@@ -12,6 +12,7 @@ from sys_rek_mag.llm_texts import ItemDescription, generate, current_generations
 from sys_rek_mag.storage import read_jsonl, read_json
 from sys_rek_mag.texts import llm_input_text
 
+SERVER_INFO = llm_texts.server_info  # oryginał, zanim no_network go podmieni
 DESC = " ".join(["word"] * 25)
 FEATURES = [{"aspect": f" Aspect{i} ", "value": f"Value {i}"} for i in range(6)]
 VALID = json.dumps({"description": DESC, "features": FEATURES})
@@ -105,3 +106,20 @@ def test_stale_generations_are_not_complete_or_loaded(prepared, monkeypatch):
     regenerated = FakeClient([VALID])  # zmiana PROMPT_HASH wymusza wygenerowanie wszystkiego od nowa
     assert generate("fake:model", prepared, client=regenerated)["complete"] is True
     assert regenerated.calls == len(pd.read_parquet(prepared.prepared / "items.parquet"))
+
+
+def test_prompt_tokens_recorded(prepared):
+    manifest = generate("fake:model", prepared, client=FakeClient([VALID], prompt_tokens=321), limit=3)
+    assert [r["prompt_tokens"] for r in read_jsonl(_out(prepared) / "generations.jsonl")] == [321] * 3
+    assert manifest["prompt_tokens_max"] == 321 and manifest["prompt_tokens_median"] == 321
+    generate("fake:model", prepared, client=FakeClient([VALID], prompt_tokens=None))  # serwer bez usage
+    assert read_json(_out(prepared) / "manifest.json")["prompt_tokens_max"] == 321
+
+
+def test_server_info_ollama_context_length(monkeypatch):
+    answers = {"http://h/api/version": {"version": "0.9"},
+               "http://h/api/show": {"details": {"quantization_level": "Q4_K_M"},
+                                     "model_info": {"gemma3.context_length": 131072, "gemma3.block_count": 26}}}
+    monkeypatch.setattr(llm_texts, "_get_json", lambda url, payload=None: answers.get(url))
+    info = SERVER_INFO("http://h/v1", "gemma4:e2b")
+    assert info["server"] == "ollama" and info["context_length"] == 131072 and info["quantization"] == "Q4_K_M"

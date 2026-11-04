@@ -32,12 +32,13 @@ uv run sysrekmag-llm-texts --model gemma4:e2b --limit 20
 | średni / mediana / maks. czas na produkt | — |
 | poprawne za 1. próbą (z 20) | — |
 | czy LLM bez tytułu rozpoznaje, czym jest produkt (ocena autora) | — |
-| czy wejście mieści się w kontekście modelu (zob. niżej) | — |
+| czy wejście mieści się w kontekście modelu (`prompt_tokens_max` vs ustawiony kontekst, zob. niżej) | — |
 | wyznaczone `N_ITEMS` (≤ ~4 h) i szacowany czas pełnego przebiegu | — |
 
 Na co uważać:
 
 - Wejście ma do 20 opinii po maks. 800 znaków, czyli do kilku tysięcy tokenów. Ollama ma ograniczony domyślny kontekst i może po cichu uciąć początek promptu. Przed pilotażem sprawdź ustawienie kontekstu (np. zmienna `OLLAMA_CONTEXT_LENGTH` przy starcie serwera) i zapisz je tutaj.
+- Jak to odczytać po pilotażu: każda generacja w `generations.jsonl` ma `prompt_tokens` (liczba tokenów wejścia policzona przez serwer, z `usage`), a manifest `data/item_texts/llm_<model_id>/manifest.json` podaje `prompt_tokens_max` i `prompt_tokens_median`. Dla Ollamy `server.context_length` to maksymalny kontekst modelu z `/api/show`; faktycznie używany kontekst to ustawienie serwera (`OLLAMA_CONTEXT_LENGTH` / `num_ctx`), zwykle mniejsze. Jeśli `prompt_tokens_max` jest równe albo bliskie temu ustawieniu, wejście zostało ucięte: zwiększ kontekst serwera albo zmniejsz `REVIEW_MAX_CHARS` / `MAX_REVIEWS_PER_ITEM` (zmiana protokołu). `null` oznacza, że serwer nie podał `usage`.
 - Orientacyjnie: w poprzednim projekcie (sys-rek-mag-3, inne zadanie, krótsze wejście) `gemma4:e2b` na tym samym sprzęcie potrzebował ok. 9 s na odpowiedź. To nie jest pomiar dla tego projektu.
 
 ## Kolejne modele

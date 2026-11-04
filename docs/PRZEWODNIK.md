@@ -150,7 +150,7 @@ data/
     llm_gemma4_e2b/
       generations.jsonl    jedna linia na produkt: wynik LLM, czas, liczba prób, skróty
       errors.jsonl         tylko gdy jakieś produkty się nie udały
-      manifest.json        prompt, serwer, kwantyzacja, sprzęt, complete: true/false
+      manifest.json        prompt, serwer (z context_length), kwantyzacja, sprzęt, prompt_tokens_max/median, complete
       texts.parquet        gotowe teksty wariantu (pisze encode)
   models/
     no_llm/, llm_gemma4_e2b/

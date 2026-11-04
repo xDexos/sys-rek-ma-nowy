@@ -71,8 +71,11 @@ def make_client(base_url: str = config.LLM_BASE_URL, api_key: str = config.LLM_A
     return OpenAI(base_url=base_url, api_key=api_key, timeout=300.0)
 
 
-def generate_one(client, record: dict[str, Any], llm_model: str, seed: int = config.SEED) -> tuple[dict, int]:
-    """Jeden opis z walidacją; przy błędzie ponowienie z komunikatem walidacji (max MAX_RETRIES prób)."""
+def generate_one(client, record: dict[str, Any], llm_model: str, seed: int = config.SEED) -> tuple[dict, int, int | None]:
+    """Jeden opis z walidacją; przy błędzie ponowienie z komunikatem walidacji (max MAX_RETRIES prób).
+
+    Zwraca też prompt_tokens z usage serwera (None, gdy go nie podaje) — do wykrycia ucięcia kontekstu.
+    """
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": llm_input_text(record)}]
     error = ""
     for attempt in range(1, MAX_RETRIES + 1):
@@ -85,7 +88,8 @@ def generate_one(client, record: dict[str, Any], llm_model: str, seed: int = con
         try:
             if choice.finish_reason == "length":
                 raise ValueError("odpowiedź ucięta limitem tokenów; zwróć krótszy JSON")
-            return ItemDescription.model_validate_json(raw).model_dump(), attempt
+            prompt_tokens = getattr(getattr(response, "usage", None), "prompt_tokens", None)
+            return ItemDescription.model_validate_json(raw).model_dump(), attempt, prompt_tokens
         except (ValidationError, ValueError) as exc:
             error = str(exc)[:1000]
             messages = [*messages[:2], {"role": "assistant", "content": raw},
@@ -109,8 +113,10 @@ def server_info(base_url: str, llm_model: str) -> dict[str, Any]:
     if version := _get_json(f"{root}/api/version"):
         show = _get_json(f"{root}/api/show", {"model": llm_model}) or {}
         details = show.get("details", {})
+        context = [v for k, v in (show.get("model_info") or {}).items() if k.endswith("context_length")]
         return {"server": "ollama", "version": version.get("version"),
-                "quantization": details.get("quantization_level"), "parameter_size": details.get("parameter_size")}
+                "quantization": details.get("quantization_level"), "parameter_size": details.get("parameter_size"),
+                "context_length": context[0] if context else None}
     if version := _get_json(f"{root}/version"):
         return {"server": "vllm", "version": version.get("version"), "quantization": None}
     if model := _get_json(f"{root}/api/v0/models/{llm_model}"):
@@ -149,7 +155,7 @@ def generate(
         asin = record["parent_asin"]
         started = time.perf_counter()
         try:
-            output, attempts = generate_one(client, record, llm_model, seed)
+            output, attempts, prompt_tokens = generate_one(client, record, llm_model, seed)
         except Exception as exc:  # błąd jednego produktu nie przerywa przebiegu; braki uzupełni ponowne uruchomienie
             failures.append({"parent_asin": asin, "error": str(exc)})
             print(f"  BŁĄD {asin}: {exc}")
@@ -157,7 +163,8 @@ def generate(
         seconds.append(time.perf_counter() - started)
         records[asin] = {
             "parent_asin": asin, "llm_model": llm_model, "source_hash": text_hash(llm_input_text(record)),
-            "prompt_hash": PROMPT_HASH, "attempts": attempts, "seconds": round(seconds[-1], 2), "output": output,
+            "prompt_hash": PROMPT_HASH, "attempts": attempts, "seconds": round(seconds[-1], 2),
+            "prompt_tokens": prompt_tokens, "output": output,
         }
         print(f"  [{number}/{len(todo)}] {asin} — {seconds[-1]:.1f} s, próby: {attempts}")
         if number % CHECKPOINT_EVERY == 0:
@@ -169,6 +176,7 @@ def generate(
         errors_path.unlink()
     valid = {a for a, rec in records.items() if a in hashes and _reusable(rec, hashes[a], llm_model)}
     mean_seconds = float(np.mean(seconds)) if seconds else None
+    tokens = [records[a]["prompt_tokens"] for a in valid if records[a].get("prompt_tokens") is not None]
     manifest = {
         "llm_model": llm_model, "model_id": config.model_id(llm_model), "base_url": str(client.base_url),
         "server": server_info(str(client.base_url), llm_model), "quantization_declared": quantization,
@@ -176,6 +184,8 @@ def generate(
         "prompt_hash": PROMPT_HASH, "temperature": 0, "seed": seed, "max_tokens": MAX_TOKENS,
         "items": len(item_ids), "valid_generations": len(valid), "failed_generations": len(failures),
         "complete": valid == item_ids, "mean_seconds_last_run": mean_seconds,
+        "prompt_tokens_max": max(tokens) if tokens else None,
+        "prompt_tokens_median": float(np.median(tokens)) if tokens else None,
     }
     write_json(manifest, out / "manifest.json")
     if mean_seconds is not None:

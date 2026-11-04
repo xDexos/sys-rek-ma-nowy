@@ -131,13 +131,17 @@ def raw(paths: Paths) -> Path:
 
 
 class FakeClient:
-    """Atrapa klienta OpenAI: kolejka odpowiedzi (ostatnia się powtarza) albo responder(messages) -> str."""
+    """Atrapa klienta OpenAI: kolejka odpowiedzi (ostatnia się powtarza) albo responder(messages) -> str.
+
+    prompt_tokens trafia do response.usage (None = serwer nie podaje usage)."""
 
     base_url = "http://127.0.0.1:9/v1"
 
-    def __init__(self, responses: list[str] | None = None, responder=None, finish_reason: str = "stop"):
+    def __init__(self, responses: list[str] | None = None, responder=None, finish_reason: str = "stop",
+                 prompt_tokens: int | None = 100):
         assert (responses is None) != (responder is None), "dokładnie jedno z: responses, responder"
         self.responses, self.responder, self.finish_reason, self.calls = list(responses or []), responder, finish_reason, 0
+        self.usage = None if prompt_tokens is None else type("U", (), {"prompt_tokens": prompt_tokens})()
         self.chat = self
         self.completions = self
 
@@ -148,7 +152,8 @@ class FakeClient:
         else:
             content = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
         message = type("M", (), {"content": content})()
-        return type("R", (), {"choices": [type("C", (), {"message": message, "finish_reason": self.finish_reason})()]})()
+        choice = type("C", (), {"message": message, "finish_reason": self.finish_reason})()
+        return type("R", (), {"choices": [choice], "usage": self.usage})()
 
 
 class FakeEncoder:
