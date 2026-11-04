@@ -57,7 +57,7 @@ Teksty są po angielsku (opinie i enkoder są angielskie). Szablony: `src/sys_re
 
 Kod: `src/sys_rek_mag/llm_texts.py`.
 
-- **Wejście:** do `MAX_REVIEWS_PER_ITEM = 20` opinii treningowych z niepustym tekstem, w kolejności: najwięcej `helpful_vote`, potem nowsze, potem `user_id`. Każda opinia ma ocenę w gwiazdkach i tytuł opinii; tekst obcięty do `REVIEW_MAX_CHARS = 800` znaków.
+- **Wejście:** do `MAX_REVIEWS_PER_ITEM = 20` opinii treningowych z niepustym tekstem, w kolejności: najdłuższy tekst (po usunięciu białych znaków z brzegów), potem nowsze, potem `user_id`. `helpful_vote` nie jest używany, bo w zbiorze to stan głosów z chwili zebrania danych, czyli także głosy oddane po `T1`. Każda opinia ma ocenę w gwiazdkach i tytuł opinii; tekst obcięty do `REVIEW_MAX_CHARS = 800` znaków.
 - **LLM widzi tylko opinie.** Nie widzi tytułu produktu, marki ani opisu ze sklepu.
 - **Wyjście (JSON, walidacja pydantic):** `description` (prompt: „2-4 sentences, at most 80 words”, walidator: 20–80 słów) i `features` (5–12 par `aspect: value`, małe litery). Prompt zabrania wspominania ocen i popularności.
 - `response_format: json_schema`, temperatura 0, seed 2026, `max_tokens = 1000`, maks. 3 próby z komunikatem błędu walidacji.
@@ -130,3 +130,4 @@ Binarna istotność, `k ∈ TOP_KS = (5, 10)`, makro po użytkownikach ewaluacyj
 ## Rejestr zmian
 
 - 2026-11-04: pierwsza wersja protokołu, spisana przed pobraniem danych, pilotażem i jakąkolwiek ewaluacją. `N_ITEMS = 1500` jest wartością wstępną do potwierdzenia po pilotażu.
+- 2026-11-04: kolejność opinii na wejściu LLM zmieniona z „najwięcej `helpful_vote`, potem nowsze, potem `user_id`” na „najdłuższy tekst, potem nowsze, potem `user_id`”. Powód: `helpful_vote` to liczba głosów z chwili zebrania zbioru, więc zawiera głosy oddane po `T1` i przemycała informację spoza okresu treningowego do wyboru opinii. Długość tekstu i czas opinii są znane przed `T1`. Zmiana przed pilotażem i przed jakąkolwiek ewaluacją; nic nie trzeba przeliczać.

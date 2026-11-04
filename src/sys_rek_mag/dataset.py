@@ -24,7 +24,6 @@ REVIEWS_FILE = "Automotive.jsonl.gz"
 META_FILE = "meta_Automotive.jsonl.gz"
 CORE_TRAIN_FILE = "Automotive.train.csv.gz"
 META_FIELDS = ("parent_asin", "title", "features", "description", "categories")
-REVIEW_SORT = (["helpful_vote", "timestamp", "user_id"], [False, False, True])
 
 
 def _stream(path: Path) -> Iterator[dict]:
@@ -73,15 +72,16 @@ def select_items(candidates: set[str], meta: pd.DataFrame, train_counts: pd.Seri
     return top.sort_values("parent_asin").reset_index(drop=True)
 
 
-def pick_reviews(reviews: pd.DataFrame) -> list[dict]:
-    """Opinie dla LLM: sort (-helpful_vote, -timestamp, user_id), pierwsze MAX_REVIEWS_PER_ITEM, tekst obcięty."""
-    top = reviews.sort_values(REVIEW_SORT[0], ascending=REVIEW_SORT[1], kind="stable").head(config.MAX_REVIEWS_PER_ITEM)
-    return [{"rating": float(r.rating), "title": str(r.title or ""), "text": r.text.strip()[: config.REVIEW_MAX_CHARS]}
-            for r in top.itertuples()]
-
-
 def _review_key(review: dict) -> tuple:
-    return -review["helpful_vote"], -review["timestamp"], review["user_id"]
+    """Dłuższy tekst, potem nowsza, potem user_id; bez helpful_vote, bo głosy zbierane są także po T1."""
+    return -len(review["text"].strip()), -review["timestamp"], review["user_id"]
+
+
+def pick_reviews(reviews: pd.DataFrame) -> list[dict]:
+    """Opinie dla LLM: stabilny sort po _review_key, pierwsze MAX_REVIEWS_PER_ITEM, tekst obcięty."""
+    top = sorted(reviews.to_dict(orient="records"), key=_review_key)[: config.MAX_REVIEWS_PER_ITEM]
+    return [{"rating": float(r["rating"]), "title": str(r["title"] or ""),
+             "text": r["text"].strip()[: config.REVIEW_MAX_CHARS]} for r in top]
 
 
 def scan_selected(raw: Path, selected: set[str]) -> tuple[pd.DataFrame, dict[str, list[dict]]]:
@@ -97,8 +97,7 @@ def scan_selected(raw: Path, selected: set[str]) -> tuple[pd.DataFrame, dict[str
             earliest[pair] = (timestamp, float(r["rating"]))
         if timestamp < config.T1 and _has_text(r):
             bucket = texts[asin]
-            bucket.append({k: r.get(k) for k in ("rating", "title", "text", "helpful_vote", "user_id")}
-                          | {"timestamp": timestamp, "helpful_vote": int(r.get("helpful_vote") or 0)})
+            bucket.append({k: r.get(k) for k in ("rating", "title", "text", "user_id")} | {"timestamp": timestamp})
             if len(bucket) > 4 * config.MAX_REVIEWS_PER_ITEM:  # stabilne przycięcie = ta sama kolejność co pick_reviews
                 texts[asin] = sorted(bucket, key=_review_key)[: config.MAX_REVIEWS_PER_ITEM]
     interactions = pd.DataFrame(

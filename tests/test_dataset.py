@@ -85,16 +85,15 @@ def test_splits_by_cutoffs(paths, raw):
 
 
 def test_pick_reviews_order_and_truncation():
-    reviews = pd.DataFrame({
-        "rating": [1.0, 2.0, 3.0, 4.0], "title": ["a", "b", "c", "d"],
-        "text": ["x" * (REVIEW_MAX_CHARS + 50), "short", "tie u2", "tie u1"],
-        "helpful_vote": [5, 1, 3, 3], "timestamp": [10, 99, 20, 20], "user_id": ["u", "u", "u2", "u1"],
+    reviews = pd.DataFrame({  # helpful_vote zależy od głosów po T1, więc nie wpływa na kolejność
+        "rating": [1.0, 2.0, 3.0, 4.0, 5.0], "title": ["a", "b", "c", "d", "e"],
+        "text": ["x" * (REVIEW_MAX_CHARS + 50), "short", "tie u2", " tie u1 ", "newest"],
+        "helpful_vote": [0, 100, 3, 3, 0], "timestamp": [10, 99, 20, 20, 30], "user_id": ["u", "u", "u2", "u1", "u"],
     })
-    picked = pick_reviews(reviews)
-    assert [r["title"] for r in picked] == ["a", "d", "c", "b"]
+    picked = pick_reviews(reviews)  # dłuższy tekst, potem nowsza, potem user_id
+    assert [r["title"] for r in picked] == ["a", "e", "d", "c", "b"]
     assert picked[0] == {"rating": 1.0, "title": "a", "text": "x" * REVIEW_MAX_CHARS}
-    many = pd.DataFrame({"rating": 5.0, "title": "t", "text": "y", "helpful_vote": range(30), "timestamp": 1,
-                         "user_id": "u"})
+    many = pd.DataFrame({"rating": 5.0, "title": "t", "text": "y", "timestamp": range(30), "user_id": "u"})
     assert len(pick_reviews(many)) == MAX_REVIEWS_PER_ITEM
 
 
