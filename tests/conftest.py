@@ -149,3 +149,27 @@ class FakeClient:
             content = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
         message = type("M", (), {"content": content})()
         return type("R", (), {"choices": [type("C", (), {"message": message, "finish_reason": self.finish_reason})()]})()
+
+
+class FakeEncoder:
+    """Atrapa enkodera: deterministyczny worek słów haszowany (crc32) do 32 wymiarów, L2-normalizowany."""
+
+    DIM = 32
+
+    def __init__(self):
+        self.calls = 0
+        self.tokenizer = lambda texts: {"input_ids": [t.lower().split() for t in texts]}
+
+    def get_sentence_embedding_dimension(self) -> int:
+        return self.DIM
+
+    def encode(self, texts, **kw):
+        self.calls += 1
+        import numpy as np
+        import zlib
+
+        out = np.zeros((len(texts), self.DIM), dtype=np.float32)
+        for row, text in enumerate(texts):
+            for word in text.lower().split():
+                out[row, zlib.crc32(word.encode()) % self.DIM] += 1
+        return out / np.maximum(np.linalg.norm(out, axis=1, keepdims=True), 1e-9)
