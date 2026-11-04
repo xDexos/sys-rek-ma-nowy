@@ -17,5 +17,5 @@ GLOSSARY: dict[str, str] = {
     "podział czasowy": "Uczymy się na opiniach sprzed pierwszej granicy czasu, a oceniamy na opiniach z końca okresu (test), czyli jak w prawdziwym sklepie: znamy przeszłość, zgadujemy przyszłość.",
     "bootstrap": "Sprawdzenie, czy różnica nie jest przypadkiem: wielokrotnie losujemy ze zwracaniem grupę użytkowników i liczymy różnicę wyników. Rozrzut tych wyników daje przedział ufności.",
     "przedział ufności": "Zakres, w którym prawdopodobnie leży prawdziwa różnica. Jeśli cały przedział jest powyżej zera, wariant z LLM jest wyraźnie lepszy; jeśli obejmuje zero, nie umiemy tego stwierdzić.",
-    "Bonferroni": "Poprawka na wiele porównań naraz: im więcej hipotez testujemy, tym łatwiej o fałszywy alarm, więc dla porównań głównych przedział jest szerszy (99,17% zamiast 95%).",
+    "Bonferroni": "Poprawka na wiele porównań naraz: im więcej hipotez testujemy, tym łatwiej o fałszywy alarm, więc dla porównań głównych przedział jest szerszy (98,33% zamiast 95%).",
 }
