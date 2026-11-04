@@ -51,10 +51,22 @@ def test_discover_results_from_folders(paths):
     assert set(zip(found["variant"], found["mechanism"])) >= {(NO_LLM, "dense"), (LLM, "two_tower"), ("baseline", "popularity")}
     extra = paths.results("llm_other", "dense")
     shutil.copytree(paths.results(LLM, "dense"), extra)
+    unknown = paths.results(NO_LLM, "new_mech")
+    shutil.copytree(paths.results(NO_LLM, "dense"), unknown)
     try:
+        assert "new_mech" in dashboard.mechanism_options(dashboard.discover_results(paths))
+        assert "popularity" not in dashboard.mechanism_options(dashboard.discover_results(paths))
         assert ("llm_other", "dense") in set(zip(*[dashboard.discover_results(paths)[c] for c in ("variant", "mechanism")]))
     finally:
         shutil.rmtree(paths.results("llm_other", "dense").parent)
+        shutil.rmtree(unknown)
+
+
+def test_variant_colors_stable():
+    one = dashboard.variant_colors([NO_LLM, "baseline", "llm_b"])
+    two = dashboard.variant_colors([NO_LLM, "baseline", "llm_b", "llm_a"])
+    assert one[NO_LLM] == two[NO_LLM] and one["baseline"] == two["baseline"]
+    assert len(set(two.values())) == 4
 
 
 @pytest.mark.parametrize("text", ["", "   \n"])

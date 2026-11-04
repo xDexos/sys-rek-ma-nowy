@@ -19,7 +19,7 @@ from .two_tower import load_two_tower, two_tower_query
 
 MECHANISM_LABELS = {"tfidf": "TF-IDF", "dense": "Embeddingi (MiniLM)", "two_tower": "Sieć dwuwieżowa",
                     config.POPULARITY: "Popularność"}
-# Stałe kolory wariantów (paleta kategoryczna); kolor idzie za wariantem, nie za pozycją na liście
+# Paleta kategoryczna; przydział wariant -> slot w variant_colors
 SLOT_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 PROFILE_MECHANISMS = ("tfidf", "dense", "two_tower")
 
@@ -30,6 +30,19 @@ def label(variant: str) -> str:
     if variant == config.BASELINE:
         return "popularność"
     return f"z LLM ({variant.removeprefix(config.LLM_PREFIX)})"
+
+
+def variant_colors(variants) -> dict[str, str]:
+    """Stały kolor wariantu: no_llm slot 0, popularność slot 1, llm_* od slotu 2 alfabetycznie (cyklicznie)."""
+    llm = sorted(v for v in variants if v.startswith(config.LLM_PREFIX))
+    slots = {config.NO_LLM: 0, config.BASELINE: 1, **{v: 2 + i for i, v in enumerate(llm)}}
+    return {v: SLOT_COLORS[i % len(SLOT_COLORS)] for v, i in slots.items()}
+
+
+def mechanism_options(found: pd.DataFrame) -> list[str]:
+    """Mechanizmy ze skanu (bez bazowej popularności): znane w stałej kolejności, nieznane alfabetycznie."""
+    scanned = set(found.loc[found["variant"] != config.BASELINE, "mechanism"])
+    return [m for m in PROFILE_MECHANISMS if m in scanned] + sorted(scanned - set(PROFILE_MECHANISMS))
 
 
 def discover_results(paths: Paths) -> pd.DataFrame:
@@ -79,13 +92,14 @@ def _encoder():
 def _results_tab(paths: Paths, found: pd.DataFrame, mechanism: str) -> None:
     table = found[found["mechanism"].isin([mechanism, config.POPULARITY])].copy()
     table["wariant"] = table["variant"].map(label)
-    table["mechanizm"] = table["mechanism"].map(MECHANISM_LABELS)
+    table["mechanizm"] = table["mechanism"].map(lambda m: MECHANISM_LABELS.get(m, m))
     st.subheader("Metryki")
     metrics = [c for c in table.columns if c not in ("variant", "mechanism", "wariant", "mechanizm")]
     st.dataframe(table[["wariant", "mechanizm", *metrics]].set_index("wariant"))
     st.subheader("NDCG@10")
+    palette = variant_colors(found["variant"])
     domain = list(table["wariant"])
-    colors = [SLOT_COLORS[i % len(SLOT_COLORS)] for i in range(len(domain))]
+    colors = [palette[v] for v in table["variant"]]
     st.altair_chart(alt.Chart(table).mark_bar().encode(
         x=alt.X("wariant:N", sort=None, title=None), y=alt.Y(f"{PRIMARY_METRIC}:Q", title="NDCG@10"),
         color=alt.Color("wariant:N", scale=alt.Scale(domain=domain, range=colors), legend=None)),
@@ -138,10 +152,10 @@ def main() -> None:
                    "sysrekmag-encode, sysrekmag-train, sysrekmag-evaluate.")
         return
     llm_variants = sorted(v for v in found["variant"].unique() if v.startswith(config.LLM_PREFIX))
-    mechanisms = [m for m in MECHANISM_LABELS if m in set(found["mechanism"])]
+    mechanisms = mechanism_options(found)
     with st.sidebar:
         llm = st.selectbox("Model LLM", llm_variants, format_func=label) if llm_variants else None
-        mechanism = st.selectbox("Mechanizm", mechanisms, format_func=MECHANISM_LABELS.get)
+        mechanism = st.selectbox("Mechanizm", mechanisms, format_func=lambda m: MECHANISM_LABELS.get(m, m))
         n = st.radio("Liczba rekomendacji N", config.TOP_KS, horizontal=True)
     results, cost, profile, glossary = st.tabs(["Wyniki", "Koszt LLM", "Mój profil", "Słownik"])
     with results:
