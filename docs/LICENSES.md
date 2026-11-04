@@ -9,7 +9,7 @@ Rola dokumentu: licencje wszystkiego, czego projekt używa i co wytwarza. Stan n
 | Kod projektu | nie ustalono | **TODO** (autor) |
 | Amazon Reviews 2023 (Automotive) | brak formalnej licencji; twórcy proszą o cytowanie | **TODO**: potwierdzić z promotorem |
 | Teksty opinii i opisy produktów | prawa autorów opinii / sprzedawców / Amazon | używane lokalnie, nie publikowane |
-| `gemma4:e2b` (Gemma 4, Google) | Apache 2.0 (wg źródeł zewnętrznych) | **TODO**: potwierdzić na karcie modelu |
+| `gemma4:e2b` (Gemma 4, Google) | Apache 2.0 | potwierdzone (`ollama show gemma4:e2b`, 2026-11-04) |
 | `sentence-transformers/all-MiniLM-L6-v2` | Apache 2.0 | potwierdzone (karta modelu w cache Hugging Face) |
 | Ollama | MIT | narzędzie, nie jest dystrybuowane |
 | Biblioteki Pythona | BSD / MIT / Apache 2.0 | potwierdzone (metadane pakietów) |
@@ -36,7 +36,7 @@ Kod w `src/`, `tests/` i `dashboard.py` napisał autor pracy z pomocą asystenta
 | `gemma4:e2b` | opisy i cechy produktów | Apache 2.0* |
 | `sentence-transformers/all-MiniLM-L6-v2` | enkoder tekstu | Apache 2.0 |
 
-\* Według źródeł zewnętrznych Gemma 4 jest na licencji Apache 2.0 (Gemma 1–3 miały własne „Gemma Terms of Use”). **TODO (autor):** potwierdzić na karcie modelu (Hugging Face / Ollama). Modele działają lokalnie; wag nie redystrybuujemy.
+\* Gemma 4 jest na licencji Apache 2.0, co potwierdza `ollama show gemma4:e2b` (2026-11-04); Gemma 1–3 miały własne „Gemma Terms of Use”. Modele działają lokalnie; wag nie redystrybuujemy.
 
 ## Oprogramowanie
 

@@ -46,3 +46,20 @@ Nieużywane: `verified_purchase`, `images`, `price`, `store`, `details` i pozost
 - Metadane to stan z 2023 r., bez znaczników czasu (zob. „Ograniczenia” w protokole).
 - 5-core twórcy zbioru policzyli na pełnym zakresie czasu (zob. protokół).
 - Jeden użytkownik może opiniować ten sam produkt kilka razy; liczymy tylko najwcześniejszą opinię.
+
+## Wynik etapu prepare (2026-11-04)
+
+Parametry domyślne (`N_ITEMS=1500`, bez podkategorii). Czas ok. 5 min, szczytowo ok. 2,6 GB RAM.
+
+| Wielkość | Wartość |
+|---|---|
+| kandydaci z treningowej części 5-core | 248 186 |
+| z tytułem w metadanych | 248 173 |
+| spełniające próg ≥ 5 opinii treningowych | 238 160 |
+| wybrane produkty | 1500 (opinii treningowych: min 693, mediana 1052, maks. 17 320) |
+| interakcje train / valid / test | 2 201 056 / 249 620 / 192 330 |
+| użytkownicy | 2 043 045 |
+| użytkownicy ewaluacyjni | 18 751 |
+| wejście LLM | 20 opinii na każdy produkt, mediana ok. 16,7 tys. znaków |
+
+Użytkowników ewaluacyjnych jest wyraźnie więcej niż próg ostrzeżenia (500), więc zawężenie do podkategorii nie jest potrzebne.
