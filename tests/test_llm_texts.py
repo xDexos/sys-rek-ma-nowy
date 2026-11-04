@@ -92,3 +92,13 @@ def test_input_never_contains_product_title(prepared):
     generate("fake:model", prepared, client=FakeClient(responder=responder), limit=3)
     items = pd.read_parquet(prepared.prepared / "items.parquet")
     assert seen and all(t not in s for s in seen for t in items["title"])
+
+
+def test_stale_generations_are_not_complete_or_loaded(prepared, monkeypatch):
+    generate("fake:model", prepared, client=FakeClient([VALID]))
+    monkeypatch.setattr(llm_texts, "PROMPT_HASH", "new-prompt")
+    with pytest.raises(SystemExit):
+        generate("fake:model", prepared, client=FakeClient(["not json"]))
+    manifest = read_json(_out(prepared) / "manifest.json")
+    assert manifest["complete"] is False and manifest["valid_generations"] == 0
+    assert load_generations(prepared, llm_variant("fake_model")) == {}

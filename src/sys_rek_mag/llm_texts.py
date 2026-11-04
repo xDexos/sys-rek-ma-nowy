@@ -27,7 +27,7 @@ First work out what the product is from the reviews. Then describe what it is an
 Use only information that follows from the reviews; do not guess and do not add facts from outside them.
 Do not mention star ratings or popularity (no "best-selling", "highly rated", review counts) in the description.
 Return one JSON object with exactly these fields:
-- "description": 20-80 words.
+- "description": 2-4 sentences, at most 80 words.
 - "features": 5-12 objects {"aspect": ..., "value": ...}, short lowercase labels (e.g. aspect "installation", value "easy").
 Write everything in English."""
 
@@ -142,7 +142,8 @@ def generate(
     records = {r["parent_asin"]: r for r in read_jsonl(generations_path) if r["parent_asin"] in item_ids}
     client = client or make_client()
     failures, seconds = [], []
-    todo = [r for r in selected if not _reusable(records.get(r["parent_asin"]), text_hash(llm_input_text(r)), llm_model)]
+    hashes = {r["parent_asin"]: text_hash(llm_input_text(r)) for r in inputs}
+    todo = [r for r in selected if not _reusable(records.get(r["parent_asin"]), hashes[r["parent_asin"]], llm_model)]
     print(f"Model {llm_model}: do wygenerowania {len(todo)} z {len(selected)} produktów")
     for number, record in enumerate(todo, start=1):
         asin = record["parent_asin"]
@@ -166,18 +167,19 @@ def generate(
         write_jsonl(failures, errors_path)
     elif errors_path.exists():
         errors_path.unlink()
+    valid = {a for a, rec in records.items() if a in hashes and _reusable(rec, hashes[a], llm_model)}
     mean_seconds = float(np.mean(seconds)) if seconds else None
     manifest = {
         "llm_model": llm_model, "model_id": config.model_id(llm_model), "base_url": str(client.base_url),
         "server": server_info(str(client.base_url), llm_model), "quantization_declared": quantization,
         "hardware": config.LLM_HARDWARE, "system_prompt": SYSTEM_PROMPT, "response_format": RESPONSE_FORMAT,
         "prompt_hash": PROMPT_HASH, "temperature": 0, "seed": seed, "max_tokens": MAX_TOKENS,
-        "items": len(item_ids), "valid_generations": len(records), "failed_generations": len(failures),
-        "complete": set(records) == item_ids, "mean_seconds_last_run": mean_seconds,
+        "items": len(item_ids), "valid_generations": len(valid), "failed_generations": len(failures),
+        "complete": valid == item_ids, "mean_seconds_last_run": mean_seconds,
     }
     write_json(manifest, out / "manifest.json")
     if mean_seconds is not None:
-        remaining = len(item_ids) - len(records)
+        remaining = len(item_ids) - len(valid)
         print(f"Średnio {mean_seconds:.1f} s/produkt; pozostało {remaining} ≈ {remaining * mean_seconds / 3600:.1f} h")
     if failures:
         raise SystemExit(f"Nieudane produkty: {len(failures)} (zob. {errors_path}); ponowne uruchomienie uzupełni braki")
@@ -186,7 +188,8 @@ def generate(
 
 def load_generations(paths: Paths, variant: str) -> dict[str, dict[str, Any]]:
     """parent_asin -> wygenerowany wynik (description, features) dla wariantu llm_<model_id>."""
-    return {r["parent_asin"]: r["output"] for r in read_jsonl(paths.item_texts(variant) / "generations.jsonl")}
+    records = read_jsonl(paths.item_texts(variant) / "generations.jsonl")
+    return {r["parent_asin"]: r["output"] for r in records if r["prompt_hash"] == PROMPT_HASH}
 
 
 def main() -> None:

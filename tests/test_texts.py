@@ -12,7 +12,10 @@ def test_llm_input_text_format_and_no_product_title():
 
 
 def test_llm_text_contains_only_generated():
+    item = {"parent_asin": "A", "title": "ZZTITLE bulb", "features": ["ZZTITLE feature"], "description": ["ZZTITLE desc"]}
+    record = {"parent_asin": "A", "reviews": [{"rating": 5.0, "title": "Nice", "text": "Bright."}]}
     generated = {"description": "A bulb.", "features": [{"aspect": "light", "value": "bright"}, {"aspect": "fit", "value": "easy"}]}
-    text = llm_text(generated)
-    assert text == "A bulb. Features: light: bright; fit: easy"
-    assert "ZZTITLE" not in text
+    assert "ZZTITLE" in no_llm_text(item)  # kontrola: wariant no_llm zawiera tytuł, więc wyciek byłby widoczny
+    assert llm_text(generated) == "A bulb. Features: light: bright; fit: easy"
+    assert "ZZTITLE" not in llm_text(generated)
+    assert "ZZTITLE" not in llm_input_text(record)
