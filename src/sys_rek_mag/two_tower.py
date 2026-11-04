@@ -74,12 +74,12 @@ def training_data(paths: Paths, variant: str) -> dict[str, Any]:
 
 def _examples(history: sp.csr_matrix, embeddings: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Dla użytkownika z ≥ 2 pozytywami: każdy pozytyw jest celem, wejście = średnia pozostałych."""
+    rows = np.flatnonzero(np.diff(history.indptr) >= 2)
+    history = history[rows]  # mnożenie tylko dla użytkowników z przykładami (pamięć przy pełnej skali)
     counts = np.diff(history.indptr)
     sums = np.asarray(history @ embeddings, dtype=np.float64)
     users = np.repeat(np.arange(history.shape[0]), counts)
     targets = history.indices
-    keep = counts[users] >= 2
-    users, targets = users[keep], targets[keep]
     inputs = (sums[users] - embeddings[targets]) / (counts[users] - 1)[:, None]
     return inputs.astype(np.float32), targets
 
@@ -146,7 +146,7 @@ def fingerprint(paths: Paths, variant: str, seed: int = SEED) -> dict[str, Any]:
     """Odcisk wejść treningu; evaluate porównuje go z manifestem, żeby nie użyć nieaktualnych wag."""
     return {"embeddings": file_hash(paths.models(variant) / "embeddings.npy"),
             "interactions": file_hash(paths.prepared / "interactions.parquet"),
-            "seed": seed, "hyperparameters": HYPERPARAMETERS}
+            "positive_rating": config.POSITIVE_RATING, "seed": seed, "hyperparameters": HYPERPARAMETERS}
 
 
 def train_variant(paths: Paths, variant: str, seed: int = SEED) -> dict[str, Any]:

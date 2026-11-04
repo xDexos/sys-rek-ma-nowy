@@ -207,7 +207,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 | `prepare` | nigdy | liczy od nowa |
 | `llm-texts` | produkt ma generację z tym samym skrótem wejścia, tym samym `PROMPT_HASH` i tym samym modelem | generuje ten produkt |
 | `encode` | odcisk (nazwa enkodera, 512, lista `parent_asin`, wszystkie teksty) zgadza się z manifestem i pliki istnieją | koduje wariant od nowa |
-| `train` | odcisk (skrót `embeddings.npy`, skrót `interactions.parquet`, seed, hiperparametry) zgadza się z manifestem | trenuje od nowa |
+| `train` | odcisk (skrót `embeddings.npy`, skrót `interactions.parquet`, `POSITIVE_RATING`, seed, hiperparametry) zgadza się z manifestem | trenuje od nowa |
 | `evaluate` | nigdy; ocenia tylko warianty bieżące (`no_llm` + kompletne `llm_*`), nadmiarowe foldery `models/` pomija z ostrzeżeniem `UWAGA: pomijam …`; **odmawia** pracy na nieaktualnych embeddingach lub sieci bieżącego wariantu | liczy od nowa |
 
 Przykłady:
@@ -238,7 +238,7 @@ uv run sysrekmag-llm-texts --model gemma4:e2b --limit 20
 ## 10. Jak dodać kolejny model LLM
 
 1. Uruchom serwer z modelem (Ollama: `ollama pull <nazwa>`; albo vLLM / LM Studio z API zgodnym z OpenAI).
-2. Dla porządku dopisz nazwę do `LLM_MODELS` w `.env` (kod wykrywa warianty ze skanu folderów, więc to tylko zapis).
+2. Dla porządku dopisz nazwę do `LLM_MODELS` w `.env` (kod wykrywa warianty ze skanu folderów `item_texts/llm_*`, więc to tylko zapis; dashboard pokazuje tylko warianty z ostatniego `evaluate`).
 3. Pilotaż, potem pełny przebieg (**LLM, za zgodą**):
    ```bash
    uv run sysrekmag-llm-texts --model <nazwa> --limit 20
@@ -309,7 +309,6 @@ Najpierw patrz na 3 wiersze `primary`. Pozostałe pomagają zrozumieć, skąd r�
 | `UWAGA: pomijam llm_…: teksty wariantu nie są kompletne …` | nic, jeśli to celowe (np. pilotaż nowego promptu); inaczej `llm-texts` (za zgodą), `encode`, `train` |
 | `Brak sieci dwuwieżowej dla wariantu <wariant>; uruchom sysrekmag-train` | `train` |
 | `Sieć dwuwieżowa wariantu <wariant> jest nieaktualna; uruchom sysrekmag-train` | `train` |
-| `Brak embeddingów w models/; uruchom sysrekmag-encode` | `encode` |
 | `Użytkownik ewaluacyjny bez pozytywu w treningu; uruchom ponownie sysrekmag-prepare` | `prepare` (pliki w `prepared/` są niespójne) |
 
 **`train` się nie udaje:** `Za mało danych: brak przykładów treningowych albo użytkowników walidacyjnych`. Za mała próbka (np. po bardzo wąskiej podkategorii).

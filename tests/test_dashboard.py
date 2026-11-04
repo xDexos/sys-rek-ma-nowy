@@ -49,17 +49,29 @@ def test_discover_results_from_folders(paths):
     found = dashboard.discover_results(paths)
     assert {"variant", "mechanism", "users", "ndcg_at_10"} <= set(found.columns)
     assert set(zip(found["variant"], found["mechanism"])) >= {(NO_LLM, "dense"), (LLM, "two_tower"), ("baseline", "popularity")}
-    extra = paths.results("llm_other", "dense")
-    shutil.copytree(paths.results(LLM, "dense"), extra)
     unknown = paths.results(NO_LLM, "new_mech")
     shutil.copytree(paths.results(NO_LLM, "dense"), unknown)
     try:
         assert "new_mech" in dashboard.mechanism_options(dashboard.discover_results(paths))
         assert "popularity" not in dashboard.mechanism_options(dashboard.discover_results(paths))
-        assert ("llm_other", "dense") in set(zip(*[dashboard.discover_results(paths)[c] for c in ("variant", "mechanism")]))
     finally:
-        shutil.rmtree(paths.results("llm_other", "dense").parent)
         shutil.rmtree(unknown)
+
+
+def test_stale_result_folder_hidden(paths):
+    stale = paths.results("llm_old", "dense")  # z poprzedniego przebiegu, nie ma go w manifeście porównań
+    shutil.copytree(paths.results(LLM, "dense"), stale)
+    try:
+        assert "llm_old" not in set(dashboard.discover_results(paths)["variant"])
+    finally:
+        shutil.rmtree(stale.parent)
+
+
+def test_custom_top_n_rejects_rows_not_matching_items(paths, monkeypatch):
+    data = dashboard.load_variant(paths, NO_LLM)
+    monkeypatch.setattr(dashboard, "load_variant", lambda *a: data | {"embeddings": data["embeddings"][:-1]})
+    with pytest.raises(ValueError, match="sysrekmag-encode"):
+        dashboard.custom_top_n(paths, NO_LLM, "dense", "led bulb", 5, FakeEncoder())
 
 
 def test_variant_colors_stable():

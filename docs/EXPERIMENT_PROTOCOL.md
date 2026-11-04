@@ -90,7 +90,7 @@ Stałe w `src/sys_rek_mag/two_tower.py`, dobierane tylko na walidacji:
 - **Przykłady treningowe:** dla każdego użytkownika z ≥ 2 pozytywami przed `T1` każdy pozytyw jest celem, a wejściem jest średnia embeddingów pozostałych pozytywów.
 - **Strata:** entropia krzyżowa z negatywami w batchu (pozostałe produkty z tego samego batcha).
 - **Wczesne zatrzymanie:** po każdej epoce NDCG@10 na walidacji (użytkownicy z historią i pozytywem w walidacji na produkcie spoza treningu; maskowane produkty z treningu). Zostają wagi z najlepszej epoki.
-- Odcisk treningu: skrót `embeddings.npy`, skrót `interactions.parquet`, seed i hiperparametry. `sysrekmag-evaluate` odmawia użycia sieci z innym odciskiem.
+- Odcisk treningu: skrót `embeddings.npy`, skrót `interactions.parquet`, próg pozytywu (`POSITIVE_RATING`), seed i hiperparametry. `sysrekmag-evaluate` odmawia użycia sieci z innym odciskiem.
 
 ## Metryki
 

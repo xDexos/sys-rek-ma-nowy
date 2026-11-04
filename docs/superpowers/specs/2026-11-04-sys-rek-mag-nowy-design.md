@@ -122,7 +122,7 @@ Nazwy modułów są orientacyjne. Builder może je dopasować, ale zachowuje zas
 
 **Etapy CLI** (nazwy `sysrekmag-*`): `download` → `prepare` → `llm-texts --model <nazwa> [--limit N]` (**LLM, tylko za zgodą**) → `encode` → `train` (sieć dwuwieżowa) → `evaluate`. Dashboard: `uv run streamlit run dashboard.py`.
 
-**Dashboard:** odkrywa warianty i mechanizmy, skanując `data/results/`, bez listy na sztywno. Pokazuje: wybór modelu LLM / mechanizmu / wariantu; tabelę metryk; wykresy porównania wariantów z przedziałami ufności; czasy generowania LLM; pole na profil tekstowy autora z top 5/10 dla wybranej kombinacji, obok siebie bez LLM i z LLM (nie wywołuje LLM, tylko encoder); słownik pojęć.
+**Dashboard:** odkrywa warianty i mechanizmy, skanując `data/results/`, bez listy na sztywno (gdy jest `results/comparisons/manifest.json`, tylko warianty z ostatniego `evaluate`). Pokazuje: wybór modelu LLM / mechanizmu / wariantu; tabelę metryk; wykresy porównania wariantów z przedziałami ufności; czasy generowania LLM; pole na profil tekstowy autora z top 5/10 dla wybranej kombinacji, obok siebie bez LLM i z LLM (nie wywołuje LLM, tylko encoder); słownik pojęć.
 
 ## 9. Co przenosimy z sys-rek-mag-3
 

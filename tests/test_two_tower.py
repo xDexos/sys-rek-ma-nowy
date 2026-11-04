@@ -79,3 +79,21 @@ def test_main_trains_every_variant(encoded, monkeypatch):
     monkeypatch.setattr("sys.argv", ["sysrekmag-train"])
     two_tower.main()
     assert calls == [VARIANT]
+
+
+def test_examples_match_naive_leave_one_out():
+    import scipy.sparse as sp
+
+    history = sp.csr_matrix(np.array([[1, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 0], [1, 0, 1, 0]], dtype=float))
+    embeddings = np.random.default_rng(0).random((4, 3)).astype(np.float32)
+    inputs, targets = two_tower._examples(history, embeddings)
+    expected = [(np.delete(row, k).tolist(), t) for u in (0, 3) for row in [history[u].indices]
+                for k, t in enumerate(row)]
+    assert targets.tolist() == [t for _, t in expected]  # użytkownik z 1 pozytywem i bez pozytywów pominięci
+    assert np.allclose(inputs, [embeddings[rest].mean(axis=0) for rest, _ in expected])
+
+
+def test_fingerprint_includes_positive_rating(encoded, monkeypatch):
+    before = two_tower.fingerprint(encoded, VARIANT)
+    monkeypatch.setattr(two_tower.config, "POSITIVE_RATING", 5)
+    assert two_tower.fingerprint(encoded, VARIANT) != before

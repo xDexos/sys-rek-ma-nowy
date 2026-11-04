@@ -46,9 +46,16 @@ def mechanism_options(found: pd.DataFrame) -> list[str]:
 
 
 def discover_results(paths: Paths) -> pd.DataFrame:
-    """Jeden wiersz na results/<wariant>/<mechanizm>/metrics.json; nic na sztywno."""
+    """Jeden wiersz na results/<wariant>/<mechanizm>/metrics.json; nic na sztywno.
+
+    Gdy jest manifest porównań, tylko warianty z ostatniego evaluate (stare foldery wyników są pomijane).
+    """
     rows = [{"variant": f.parent.parent.name, "mechanism": f.parent.name, **read_json(f)}
             for f in sorted(paths.results_root.glob("*/*/metrics.json"))]
+    manifest = paths.comparisons / "manifest.json"
+    if manifest.is_file():
+        keep = {*read_json(manifest)["variants"], config.BASELINE}
+        rows = [r for r in rows if r["variant"] in keep]
     return pd.DataFrame(rows)
 
 
@@ -71,6 +78,9 @@ def custom_top_n(paths: Paths, variant: str, mechanism: str, text: str, n: int, 
     if not text.strip():
         return pd.DataFrame(columns=columns)
     data = load_variant(paths, variant)
+    items = pd.read_parquet(paths.prepared / "items.parquet", columns=["parent_asin", "title"])
+    if data["embeddings"].shape[0] != len(items) or data["tfidf"].shape[0] != len(items):
+        raise ValueError(f"Modele wariantu {variant} nie odpowiadają items.parquet; uruchom sysrekmag-encode")
     if mechanism == "tfidf":
         scores = query_scores(data["vectorizer"].transform([text]), data["tfidf"])[0]
     else:
@@ -79,7 +89,6 @@ def custom_top_n(paths: Paths, variant: str, mechanism: str, text: str, n: int, 
             scores = query_scores(vector, data["embeddings"])[0]
         else:
             scores = two_tower_query(load_two_tower(paths, variant), vector, data["embeddings"])[0]
-    items = pd.read_parquet(paths.prepared / "items.parquet", columns=["parent_asin", "title"])
     order = np.argsort(-scores, kind="stable")[:n]  # remis: niższy parent_asin (items posortowane)
     return items.iloc[order].assign(score=scores[order]).reset_index(drop=True)
 
