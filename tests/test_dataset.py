@@ -2,13 +2,14 @@ import gzip
 import json
 
 import pandas as pd
+import pytest
 
 from conftest import (
     BLANK_ID, BLANK_TITLE_MARKER, BOUNDARY_USER, DUPLICATE_PAIR, EVAL_USER, FEW_REVIEWS_ID, ITEM_IDS, LATE_5CORE_ID,
     NO_TITLE_ID, NO_TRAIN_POSITIVE_USER, OUTSIDE_5CORE_ID, PREPARE_SIZES, VALID_THEN_TEST_USER, write_raw,
 )
 from sys_rek_mag.config import MAX_REVIEWS_PER_ITEM, REVIEW_MAX_CHARS, T1, T2, Paths
-from sys_rek_mag.dataset import pick_reviews, prepare, select_items
+from sys_rek_mag.dataset import pick_reviews, prepare, read_meta, select_items
 from sys_rek_mag.storage import read_jsonl
 
 
@@ -142,3 +143,11 @@ def test_streaming_prune_matches_pick_reviews(paths, raw, monkeypatch):
     for record in llm_inputs:
         expected = pick_reviews(train[train["parent_asin"].eq(record["parent_asin"])])
         assert record["reviews"] == expected and len(expected) == 2
+
+
+def test_duplicate_meta_parent_asin_fails(tmp_path):
+    rows = [{"parent_asin": "A", "title": "First"}, {"parent_asin": "A", "title": "Second"}]
+    with gzip.open(tmp_path / "meta_Automotive.jsonl.gz", "wt", encoding="utf-8") as file:
+        file.writelines(json.dumps(r) + "\n" for r in rows)
+    with pytest.raises(ValueError, match="parent_asin"):
+        read_meta(tmp_path, {"A"})

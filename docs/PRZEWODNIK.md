@@ -206,7 +206,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 | `download` | plik już istnieje (bez sprawdzania zawartości) | pobiera |
 | `prepare` | nigdy | liczy od nowa |
 | `llm-texts` | produkt ma generację z tym samym skrótem wejścia, tym samym `PROMPT_HASH` i tym samym modelem | generuje ten produkt |
-| `encode` | odcisk (nazwa enkodera, 512, lista `parent_asin`, wszystkie teksty) zgadza się z manifestem i pliki istnieją | koduje wariant od nowa |
+| `encode` | odcisk (nazwa enkodera, 512, lista `parent_asin`, wszystkie teksty) zgadza się z manifestem i pliki istnieją (także `item_texts/<wariant>/texts.parquet`) | koduje wariant od nowa |
 | `train` | odcisk (skrót `embeddings.npy`, skrót `interactions.parquet`, `POSITIVE_RATING`, seed, hiperparametry) zgadza się z manifestem | trenuje od nowa |
 | `evaluate` | nigdy; ocenia tylko warianty bieżące (`no_llm` + kompletne `llm_*`), nadmiarowe foldery `models/` pomija z ostrzeżeniem `UWAGA: pomijam …`; **odmawia** pracy na nieaktualnych embeddingach lub sieci bieżącego wariantu | liczy od nowa |
 
@@ -263,7 +263,7 @@ uv run sysrekmag-llm-texts --model gemma4:e2b --limit 20
 
 ### `data/results/comparisons/comparisons.csv`
 
-Jeden wiersz = jedno porównanie `llm_<model_id>` vs `no_llm` (na model: 3 mechanizmy × 9 metryk = 27 wierszy).
+Jeden wiersz = jedno porównanie `llm_<model_id>` vs `no_llm` (na model: 3 mechanizmy × 9 metryk = 27 wierszy; metryki: NDCG, precyzja, czułość i HitRate @5 i @10 oraz MRR@10).
 
 | Kolumna | Znaczenie |
 |---|---|

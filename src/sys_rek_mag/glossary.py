@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 GLOSSARY: dict[str, str] = {
-    "wariant": "Jaki tekst o produkcie dajemy algorytmowi. „Bez LLM” to tytuł, cechy i opis ze sklepu. „Z LLM” to wyłącznie opis napisany przez model językowy na podstawie opinii klientów.",
+    "wariant": "Jaki tekst o produkcie dajemy algorytmowi. „Bez LLM” to tytuł, cechy i opis ze sklepu. „Z LLM” to wyłącznie opis i lista cech napisane przez model językowy na podstawie opinii klientów.",
     "mechanizm": "Sposób układania rankingu: TF-IDF, embeddingi albo sieć dwuwieżowa. Każdy działa na tekście wybranego wariantu.",
     "TF-IDF": "Zliczanie słów: słowo, które jest w tekście produktu często, a w całym katalogu rzadko, waży najwięcej. Np. „halogen” wskaże żarówki, a „the” nic nie znaczy.",
     "embedding": "Zamiana tekstu na listę liczb tak, by podobne znaczeniowo teksty dawały podobne liczby. „Bright LED bulb” i „white LED lamp” będą blisko siebie, choć mają różne słowa.",

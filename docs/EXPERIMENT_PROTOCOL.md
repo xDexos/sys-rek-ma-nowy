@@ -97,7 +97,7 @@ Stałe w `src/sys_rek_mag/two_tower.py`, dobierane tylko na walidacji:
 Binarna istotność, `k ∈ TOP_KS = (5, 10)`, makro po użytkownikach ewaluacyjnych (każdy ma ≥ 1 cel testowy).
 
 - **Główna:** NDCG@10.
-- **Pozostałe:** Precision@5/10 (trafienia / k), Recall@5/10 (trafienia / liczba celów), HitRate@5/10, **MRR@10** (1 / pozycja pierwszego trafienia w top 10, 0 gdy brak).
+- **Pozostałe (pomocnicze, razem z główną 9 metryk):** NDCG@5, Precision@5/10 (trafienia / k), Recall@5/10 (trafienia / liczba celów), HitRate@5/10, **MRR@10** (1 / pozycja pierwszego trafienia w top 10, 0 gdy brak).
 
 ## Porównania i poziomy ufności
 

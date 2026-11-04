@@ -46,7 +46,11 @@ def read_meta(raw: Path, candidates: set[str]) -> pd.DataFrame:
         if row.get("parent_asin") in candidates and title:
             rows.append({"parent_asin": row["parent_asin"], "title": title,
                          **{f: list(row.get(f) or []) for f in ("features", "description", "categories")}})
-    return pd.DataFrame(rows, columns=list(META_FIELDS))
+    meta = pd.DataFrame(rows, columns=list(META_FIELDS))
+    if not meta["parent_asin"].is_unique:
+        duplicates = sorted(set(meta.loc[meta["parent_asin"].duplicated(), "parent_asin"]))
+        raise ValueError(f"Powtórzone parent_asin w {META_FILE}: {duplicates[:10]}; sprawdź pobrany plik metadanych")
+    return meta
 
 
 def _has_text(review: dict) -> bool:

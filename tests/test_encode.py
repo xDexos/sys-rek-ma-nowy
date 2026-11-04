@@ -67,3 +67,11 @@ def test_row_order_matches_items(prepared):
     emb = load_variant(prepared, "no_llm")["embeddings"]
     assert np.allclose(emb, enc.encode(texts["no_llm"]))
     assert list(pd.read_parquet(prepared.item_texts("no_llm") / "texts.parquet")["parent_asin"]) == list(items["parent_asin"])
+
+
+def test_missing_texts_parquet_forces_encode(prepared):
+    encode_all(prepared, FakeEncoder())
+    (prepared.item_texts("no_llm") / "texts.parquet").unlink()
+    enc = FakeEncoder()
+    encode_all(prepared, enc)
+    assert enc.calls == 1 and (prepared.item_texts("no_llm") / "texts.parquet").is_file()

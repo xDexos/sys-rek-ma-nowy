@@ -1,9 +1,10 @@
 [project]
 name = "sys-rek-mag-nowy"
 version = "0.1.0"
-description = "Profilowanie obiektów przez lokalne LLM w systemach rekomendacyjnych: Amazon Reviews 2023 (Automotive), warm i cold-start"
+description = "Zastosowanie dużych modeli językowych do generowania opisów i cech produktów na potrzeby systemów rekomendacyjnych (Amazon Reviews 2023, Automotive)"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+    "altair==6.3.0",
     "numpy==2.5.3",
     "pandas==3.0.5",
     "scipy==1.18.1",
