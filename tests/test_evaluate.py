@@ -114,3 +114,18 @@ def test_missing_two_tower_fails_clearly(trained):
             evaluate.per_user_metrics(trained)
     finally:
         weights.write_bytes(saved)
+
+
+@pytest.mark.parametrize("change", ["values", "rows"])
+def test_stale_models_fail_clearly(trained, change):
+    path = trained.models(NO_LLM) / "embeddings.npy"
+    saved = path.read_bytes()
+    embeddings = np.load(path)
+    replaced = embeddings[::-1] if change == "values" else embeddings[:-1]  # encode bez train / inna próbka
+    np.save(path, np.ascontiguousarray(replaced))
+    try:
+        with pytest.raises(ValueError, match="sysrekmag-train" if change == "values" else "sysrekmag-encode"):
+            evaluate.per_user_metrics(trained)
+    finally:
+        path.write_bytes(saved)
+    evaluate.per_user_metrics(trained)  # po przywróceniu znów aktualne

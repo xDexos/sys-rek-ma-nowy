@@ -141,20 +141,25 @@ def _fit(data: dict[str, Any], seed: int) -> tuple[dict[str, torch.Tensor], dict
                         "train_examples": len(targets), "valid_users": len(data["valid_users"])}
 
 
+def fingerprint(paths: Paths, variant: str, seed: int = SEED) -> dict[str, Any]:
+    """Odcisk wejść treningu; evaluate porównuje go z manifestem, żeby nie użyć nieaktualnych wag."""
+    return {"embeddings": file_hash(paths.models(variant) / "embeddings.npy"),
+            "interactions": file_hash(paths.prepared / "interactions.parquet"),
+            "seed": seed, "hyperparameters": HYPERPARAMETERS}
+
+
 def train_variant(paths: Paths, variant: str, seed: int = SEED) -> dict[str, Any]:
     out = paths.models(variant)
     manifest_path, weights_path = out / "two_tower_manifest.json", out / "two_tower.pt"
-    fingerprint = {"embeddings": file_hash(out / "embeddings.npy"),
-                   "interactions": file_hash(paths.prepared / "interactions.parquet"),
-                   "seed": seed, "hyperparameters": HYPERPARAMETERS}
-    if manifest_path.is_file() and weights_path.is_file() and read_json(manifest_path).get("fingerprint") == fingerprint:
+    current = fingerprint(paths, variant, seed)
+    if manifest_path.is_file() and weights_path.is_file() and read_json(manifest_path).get("fingerprint") == current:
         return read_json(manifest_path)
     print(f"Trenuję sieć dwuwieżową dla wariantu {variant}")
     state, info = _fit(training_data(paths, variant), seed)
     temporary = weights_path.with_name(f".{weights_path.name}.tmp")
     torch.save(state, temporary)
     os.replace(temporary, weights_path)
-    manifest = {"fingerprint": fingerprint, "hyperparameters": HYPERPARAMETERS, "seed": seed, **info}
+    manifest = {"fingerprint": current, "hyperparameters": HYPERPARAMETERS, "seed": seed, **info}
     write_json(manifest, manifest_path)
     print(f"{variant}: najlepsza epoka {info['best_epoch']}, NDCG@10 walidacja {info['best_ndcg_at_10']:.4f}")
     return manifest

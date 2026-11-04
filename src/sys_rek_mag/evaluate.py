@@ -16,8 +16,8 @@ from . import config
 from .config import PATHS, Paths
 from .encode import load_variant
 from .recommend import dense_scores, popularity_scores, ranking_metrics, tfidf_scores, top_k
-from .storage import file_hash, write_csv, write_json, write_parquet
-from .two_tower import load_two_tower, two_tower_scores
+from .storage import file_hash, read_json, write_csv, write_json, write_parquet
+from .two_tower import fingerprint, load_two_tower, two_tower_scores
 
 METRICS = tuple(f"{m}_at_{k}" for k in config.TOP_KS for m in ("ndcg", "precision", "recall", "hit_rate")) + (
     f"mrr_at_{max(config.TOP_KS)}",)
@@ -74,17 +74,32 @@ def _load_prepared(paths: Paths) -> list[pd.DataFrame]:
     return [pd.read_parquet(paths.prepared / f"{name}.parquet") for name in PREPARED_FILES]
 
 
+def _load_current(paths: Paths, variant: str, asins: list[str], seed: int) -> dict[str, Any]:
+    """Wczytuje wariant tylko wtedy, gdy embeddingi i sieć dwuwieżowa odpowiadają aktualnej próbce."""
+    out = paths.models(variant)
+    data = load_variant(paths, variant)
+    texts = paths.item_texts(variant) / "texts.parquet"
+    aligned = texts.is_file() and pd.read_parquet(texts, columns=["parent_asin"])["parent_asin"].tolist() == asins
+    if not aligned or data["embeddings"].shape[0] != len(asins) or data["tfidf"].shape[0] != len(asins):
+        raise ValueError(f"Embeddingi wariantu {variant} nie odpowiadają aktualnej próbce; uruchom sysrekmag-encode")
+    if not (out / "two_tower.pt").is_file():
+        raise FileNotFoundError(f"Brak sieci dwuwieżowej dla wariantu {variant}; uruchom sysrekmag-train")
+    manifest = out / "two_tower_manifest.json"
+    if not manifest.is_file() or read_json(manifest).get("fingerprint") != fingerprint(paths, variant, seed):
+        raise ValueError(f"Sieć dwuwieżowa wariantu {variant} jest nieaktualna; uruchom sysrekmag-train")
+    return data | {"two_tower": load_two_tower(paths, variant)}
+
+
 def per_user_metrics(paths: Paths = PATHS, seed: int = config.SEED) -> pd.DataFrame:
-    """Metryki per użytkownik ewaluacyjny; seed tylko do manifestu — ranking jest deterministyczny."""
-    m = build_matrices(*_load_prepared(paths))
+    """Metryki per użytkownik ewaluacyjny; ranking jest deterministyczny, seed musi zgadzać się z treningiem."""
+    items, interactions, users = _load_prepared(paths)
+    m = build_matrices(items, interactions, users)
     variants = evaluated_variants(paths)
     if not variants:
         raise FileNotFoundError("Brak embeddingów w models/; uruchom sysrekmag-encode")
     models: dict[str, dict[str, Any]] = {}
     for variant in variants:
-        if not (paths.models(variant) / "two_tower.pt").is_file():
-            raise FileNotFoundError(f"Brak sieci dwuwieżowej dla wariantu {variant}; uruchom sysrekmag-train")
-        models[variant] = load_variant(paths, variant) | {"two_tower": load_two_tower(paths, variant)}
+        models[variant] = _load_current(paths, variant, items["parent_asin"].tolist(), seed)
     scorers = {
         "tfidf": lambda data, history: tfidf_scores(history, data["tfidf"]),
         "dense": lambda data, history: dense_scores(history, data["embeddings"]),
