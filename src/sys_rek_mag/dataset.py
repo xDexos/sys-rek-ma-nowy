@@ -1,6 +1,7 @@
 """Etap prepare: próbka produktów Automotive, interakcje z podziałem czasowym i wejścia dla LLM.
 
-Wybór produktów korzysta wyłącznie z opinii sprzed T1; dane z okresu walidacji i testu trafiają
+Kandydaci pochodzą wyłącznie z treningowej części 5-core (Automotive.train.csv.gz); pliki valid/test
+5-core nie są czytane. Wybór produktów korzysta wyłącznie z opinii sprzed T1; dane z okresu walidacji i testu trafiają
 tylko do interactions.parquet (z kolumną split) i nie wpływają na próbkę ani na wejścia LLM.
 """
 
@@ -21,7 +22,7 @@ from sys_rek_mag.storage import write_json, write_jsonl, write_parquet
 
 REVIEWS_FILE = "Automotive.jsonl.gz"
 META_FILE = "meta_Automotive.jsonl.gz"
-CORE_FILES = tuple(f"Automotive.{split}.csv.gz" for split in ("train", "valid", "test"))
+CORE_TRAIN_FILE = "Automotive.train.csv.gz"
 META_FIELDS = ("parent_asin", "title", "features", "description", "categories")
 REVIEW_SORT = (["helpful_vote", "timestamp", "user_id"], [False, False, True])
 
@@ -34,9 +35,8 @@ def _stream(path: Path) -> Iterator[dict]:
 
 
 def read_candidates(raw: Path) -> set[str]:
-    """parent_asin z sumy trzech plików 5-core (służą tylko do wyboru kandydatów)."""
-    return set().union(*(set(pd.read_csv(raw / name, usecols=["parent_asin"], dtype=str)["parent_asin"])
-                         for name in CORE_FILES))
+    """parent_asin z treningowej części 5-core (valid/test pominięte: zależą od danych po T1)."""
+    return set(pd.read_csv(raw / CORE_TRAIN_FILE, usecols=["parent_asin"], dtype=str)["parent_asin"])
 
 
 def read_meta(raw: Path, candidates: set[str]) -> pd.DataFrame:
@@ -162,13 +162,13 @@ def prepare(paths: Paths = PATHS, n_items: int = config.N_ITEMS, subcategory: st
                    "max_reviews_per_item": config.MAX_REVIEWS_PER_ITEM, "review_max_chars": config.REVIEW_MAX_CHARS},
         "subcategory": subcategory,
         "counts": {
-            "candidates_5core": len(candidates), "candidates_with_title": len(meta),
+            "candidates_from_train_5core": len(candidates), "candidates_with_title": len(meta),
             "eligible_items": len(eligible), "items": len(items),
             "interactions": {k: int(v) for k, v in interactions["split"].value_counts().items()},
             "users": len(users), "eval_users": int(users["eval"].sum()),
         },
         "top_subcategories": top_subcategories(eligible),
-        "sources": {name: _fingerprint(raw / name) for name in (REVIEWS_FILE, META_FILE, *CORE_FILES)},
+        "sources": {name: _fingerprint(raw / name) for name in (REVIEWS_FILE, META_FILE, CORE_TRAIN_FILE)},
     }
     out = paths.prepared
     write_parquet(items, out / "items.parquet")

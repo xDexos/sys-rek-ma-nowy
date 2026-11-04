@@ -4,7 +4,7 @@ import json
 import pandas as pd
 
 from conftest import (
-    BLANK_ID, BLANK_TITLE_MARKER, BOUNDARY_USER, DUPLICATE_PAIR, EVAL_USER, FEW_REVIEWS_ID, ITEM_IDS,
+    BLANK_ID, BLANK_TITLE_MARKER, BOUNDARY_USER, DUPLICATE_PAIR, EVAL_USER, FEW_REVIEWS_ID, ITEM_IDS, LATE_5CORE_ID,
     NO_TITLE_ID, NO_TRAIN_POSITIVE_USER, OUTSIDE_5CORE_ID, PREPARE_SIZES, VALID_THEN_TEST_USER, write_raw,
 )
 from sys_rek_mag.config import MAX_REVIEWS_PER_ITEM, REVIEW_MAX_CHARS, T1, T2, Paths
@@ -48,13 +48,13 @@ def test_items_without_title_or_outside_5core_excluded(paths, raw):
     assert len(items) == PREPARE_SIZES["n_items"] and manifest["counts"]["items"] == len(items)
     assert items["parent_asin"].is_monotonic_increasing
     assert set(items["parent_asin"]) <= set(ITEM_IDS)
-    for excluded in (NO_TITLE_ID, OUTSIDE_5CORE_ID, FEW_REVIEWS_ID):
+    for excluded in (NO_TITLE_ID, OUTSIDE_5CORE_ID, FEW_REVIEWS_ID, LATE_5CORE_ID):  # LATE: tylko valid/test 5-core
         assert excluded not in set(items["parent_asin"]) | set(interactions["parent_asin"])
     assert set(interactions["parent_asin"]) <= set(items["parent_asin"])
     assert [r["parent_asin"] for r in llm_inputs] == items["parent_asin"].tolist()
     assert list(items.columns) == ["parent_asin", "title", "features", "description", "categories", "train_reviews"]
-    assert set(manifest["sources"]) == {"Automotive.jsonl.gz", "meta_Automotive.jsonl.gz",
-                                        *(f"Automotive.{s}.csv.gz" for s in ("train", "valid", "test"))}
+    assert set(manifest["sources"]) == {"Automotive.jsonl.gz", "meta_Automotive.jsonl.gz", "Automotive.train.csv.gz"}
+    assert manifest["counts"]["candidates_from_train_5core"] == len(ITEM_IDS) + 3
 
 
 def test_blank_reviews_ignored(paths, raw):

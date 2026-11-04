@@ -17,6 +17,7 @@ NO_TITLE_ID = "B100000000"  # w 5-core, dużo opinii, ale pusty tytuł w meta ->
 FEW_REVIEWS_ID = "B100000001"  # 4 opinie treningowe -> poniżej progu
 BLANK_ID = "B100000002"  # 4 opinie z tekstem + 1 z tekstem "   " -> poniżej progu
 OUTSIDE_5CORE_ID = "B100000003"  # ma meta i dużo opinii, ale nie ma go w 5-core
+LATE_5CORE_ID = "B100000004"  # dużo opinii przed T1, ale w 5-core tylko w valid/test -> nie kandydat
 BLANK_TITLE_MARKER = "BLANKREVIEWTITLE"  # tytuł opinii z białym tekstem na produkcie z próbki
 DUPLICATE_PAIR = ("U_DUP", ITEM_IDS[0])  # pierwsza opinia 5.0 w treningu, późniejsza 1.0 w teście
 EVAL_USER = "U000"
@@ -82,6 +83,8 @@ def write_raw(root: Path, extra_reviews: list[dict] | None = None) -> Path:
     for k in range(10):  # NO_TITLE i OUTSIDE_5CORE mają dużo opinii treningowych
         add(f"NT{k}", NO_TITLE_ID, 5, train_day + k * DAY)
         add(f"NC{k}", OUTSIDE_5CORE_ID, 5, train_day + k * DAY)
+    for k in range(40):
+        add(f"NL{k:02d}", LATE_5CORE_ID, 5, train_day + k * DAY)
     for k in range(4):
         add(f"FR{k}", FEW_REVIEWS_ID, 5, train_day + k * DAY)
         add(f"BL{k}", BLANK_ID, 5, train_day + k * DAY)
@@ -104,11 +107,12 @@ def write_raw(root: Path, extra_reviews: list[dict] | None = None) -> Path:
 
     meta = [_meta(a, f"{GROUP_WORDS[group_of(i)].title()} model {i}", group_of(i)) for i, a in enumerate(ITEM_IDS)]
     meta += [_meta(NO_TITLE_ID, "", 0), _meta(FEW_REVIEWS_ID, "Led Bulb few", 0),
-             _meta(BLANK_ID, "Led Bulb blank", 0), _meta(OUTSIDE_5CORE_ID, "Led Bulb outside", 0)]
+             _meta(BLANK_ID, "Led Bulb blank", 0), _meta(OUTSIDE_5CORE_ID, "Led Bulb outside", 0),
+             _meta(LATE_5CORE_ID, "Led Bulb late", 0)]
     _write_gz_jsonl(root / "meta_Automotive.jsonl.gz", meta)
 
-    core = [a for a in ITEM_IDS + [NO_TITLE_ID, FEW_REVIEWS_ID, BLANK_ID] if a != OUTSIDE_5CORE_ID]
-    for split, part in zip(("train", "valid", "test"), (core[0::3], core[1::3], core[2::3])):
+    core = ITEM_IDS + [NO_TITLE_ID, FEW_REVIEWS_ID, BLANK_ID]
+    for split, part in (("train", core), ("valid", [LATE_5CORE_ID, *ITEM_IDS[:3]]), ("test", [LATE_5CORE_ID])):
         with gzip.open(root / f"Automotive.{split}.csv.gz", "wt", encoding="utf-8") as file:
             file.write("user_id,parent_asin,rating,timestamp,history\n")
             for asin in part:
