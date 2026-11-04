@@ -128,3 +128,24 @@ def paths(tmp_path: Path) -> Paths:
 @pytest.fixture
 def raw(paths: Paths) -> Path:
     return write_raw(paths.raw)
+
+
+class FakeClient:
+    """Atrapa klienta OpenAI: kolejka odpowiedzi (ostatnia się powtarza) albo responder(messages) -> str."""
+
+    base_url = "http://127.0.0.1:9/v1"
+
+    def __init__(self, responses: list[str] | None = None, responder=None, finish_reason: str = "stop"):
+        assert (responses is None) != (responder is None), "dokładnie jedno z: responses, responder"
+        self.responses, self.responder, self.finish_reason, self.calls = list(responses or []), responder, finish_reason, 0
+        self.chat = self
+        self.completions = self
+
+    def create(self, **kw):
+        self.calls += 1
+        if self.responder:
+            content = self.responder(kw["messages"])
+        else:
+            content = self.responses.pop(0) if len(self.responses) > 1 else self.responses[0]
+        message = type("M", (), {"content": content})()
+        return type("R", (), {"choices": [type("C", (), {"message": message, "finish_reason": self.finish_reason})()]})()
