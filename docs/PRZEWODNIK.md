@@ -185,7 +185,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 | `uv run sysrekmag-prepare` | wybiera produkty, buduje interakcje, użytkowników i wejścia LLM | `data/raw/` | `data/prepared/` | kilkanaście minut (2× czyta 2,29 GB opinii) | po zmianie stałych próbki w `config.py` lub decyzji o `--subcategory` |
 | `uv run sysrekmag-llm-texts --model gemma4:e2b` | **uruchamia LLM**: opis i cechy z opinii | `prepared/items.parquet`, `llm_inputs.jsonl` | `item_texts/llm_<model_id>/` | pełna próbka ≤ ok. 4 h | po zmianie promptu, po ponownym `prepare`, gdy wariant jest niekompletny |
 | `uv run sysrekmag-encode` | teksty wariantów, embeddingi MiniLM, TF-IDF | `prepared/items.parquet`, kompletne `item_texts/llm_*` | `item_texts/<wariant>/texts.parquet`, `models/<wariant>/` | minuty | zawsze po zmianie tekstów; sam pomija niezmienione warianty |
-| `uv run sysrekmag-train` | sieć dwuwieżowa dla każdego wariantu | `models/<wariant>/embeddings.npy`, `prepared/` | `models/<wariant>/two_tower*` | minuty na wariant | po `encode`; sam pomija aktualne modele |
+| `uv run sysrekmag-train` | sieć dwuwieżowa dla każdego aktualnego wariantu (nieaktualne foldery `models/` pomija) | `models/<wariant>/embeddings.npy`, `prepared/` | `models/<wariant>/two_tower*` | minuty na wariant | po `encode`; sam pomija aktualne modele |
 | `uv run sysrekmag-evaluate` | metryki i bootstrap | `prepared/`, `models/` | `data/results/` | minuty | po każdej zmianie wyżej; liczy zawsze od nowa |
 | `uv run streamlit run dashboard.py` | przeglądanie wyników | `data/results/`, `models/`, `item_texts/` | nic | — | kiedy chcesz |
 
@@ -208,17 +208,18 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 | `llm-texts` | produkt ma generację z tym samym skrótem wejścia, tym samym `PROMPT_HASH` i tym samym modelem | generuje ten produkt |
 | `encode` | odcisk (nazwa enkodera, 512, lista `parent_asin`, wszystkie teksty) zgadza się z manifestem i pliki istnieją | koduje wariant od nowa |
 | `train` | odcisk (skrót `embeddings.npy`, skrót `interactions.parquet`, seed, hiperparametry) zgadza się z manifestem | trenuje od nowa |
-| `evaluate` | nigdy; **odmawia** pracy na nieaktualnych embeddingach lub sieci | liczy od nowa |
+| `evaluate` | nigdy; ocenia tylko warianty bieżące (`no_llm` + kompletne `llm_*`), nadmiarowe foldery `models/` pomija z ostrzeżeniem `UWAGA: pomijam …`; **odmawia** pracy na nieaktualnych embeddingach lub sieci bieżącego wariantu | liczy od nowa |
 
 Przykłady:
 
-- **Zmieniasz prompt** w `llm_texts.py` → zmienia się `PROMPT_HASH` → wszystkie stare generacje są nieważne → `llm-texts` generuje wszystko od nowa (LLM, ok. 4 h). Potem `encode`, `train`, `evaluate` przeliczają się same, bo zmieniły się teksty.
+- **Zmieniasz prompt** w `llm_texts.py` → zmienia się `PROMPT_HASH` → wszystkie stare generacje są nieważne → `llm-texts` generuje wszystko od nowa (LLM, ok. 4 h). Potem `encode`, `train`, `evaluate` przeliczają się same, bo zmieniły się teksty. Jeśli po zmianie promptu zrobisz tylko pilotaż (`--limit`), wariant jest niekompletny: `encode` go pomija, a `train` i `evaluate` pomijają jego stare `models/llm_*` (ostrzeżenie `UWAGA: pomijam …`), zamiast liczyć na tekstach ze starego promptu.
 - **Zmieniasz `N_ITEMS`** → `prepare` od nowa → uruchom `llm-texts` (wygeneruje tylko nowe produkty; stare z tym samym wejściem zostają) → `encode` → `train` → `evaluate`.
 - **Zmieniasz tylko hiperparametr sieci** w `two_tower.py` → `train` sam to wykryje (hiperparametry są w odcisku); `encode` nic nie robi.
 
+Kompletność wariantu LLM `encode` liczy sam przy każdym uruchomieniu: generacja jest ważna, gdy skrót **bieżącego** wejścia z `llm_inputs.jsonl`, `PROMPT_HASH` i model zgadzają się z rekordem. Flaga `complete` w manifeście LLM to tylko informacja z ostatniego przebiegu `llm-texts`. Po ponownym `prepare`, które zmieniło wejścia LLM (np. `REVIEW_MAX_CHARS`), stare generacje przestają się liczyć i wariant znika z `encode`/`train`/`evaluate`, dopóki nie uruchomisz `llm-texts` (za zgodą).
+
 Uwaga, czego odciski **nie widzą**:
 
-- Po ponownym `prepare` uruchom ponownie `llm-texts` (to wymaga zgody, bo łączy się z serwerem LLM, choć przy niezmienionej próbce niczego nie generuje). Flaga `complete` w manifeście LLM pochodzi z ostatniego przebiegu `llm-texts`, a `encode` czyta generacje bez sprawdzania skrótu wejścia.
 - Zmiana kodu, który nie jest częścią odcisku (np. ustawień `TfidfVectorizer` w `encode.py` albo architektury sieci), nie uruchomi przeliczenia. Wtedy usuń `data/models/<wariant>/manifest.json` (encode) albo `two_tower_manifest.json` (train).
 
 ## 9. Pilotaż
@@ -291,7 +292,7 @@ Najpierw patrz na 3 wiersze `primary`. Pozostałe pomagają zrozumieć, skąd r�
 
 **LLM zwraca zły JSON.** Program sam ponawia (maks. 3 próby, z treścią błędu). Gdy się nie uda: `Brak poprawnego opisu po 3 próbach: …` dla tego produktu; reszta idzie dalej. Częsty powód: `description musi mieć 20-80 słów` albo `odpowiedź ucięta limitem tokenów; zwróć krótszy JSON`.
 
-**Niekompletny wariant.** `encode` po cichu pomija wariant LLM, jeśli w `data/item_texts/llm_<model_id>/manifest.json` jest `"complete": false` (porównaj `valid_generations` z `items`). Objaw: brak `data/models/llm_*` i brak wariantu LLM w dashboardzie. Uruchom ponownie `llm-texts` (za zgodą): wygeneruje tylko brakujące.
+**Niekompletny wariant.** `encode` pomija wariant LLM, jeśli choć jeden produkt próbki nie ma generacji ważnej dla bieżącego wejścia, promptu i modelu (podpowiedź: `valid_generations` vs `items` w `data/item_texts/llm_<model_id>/manifest.json`; po zmianie promptu lub ponownym `prepare` liczy się stan bieżący, nie ta flaga). Objaw: brak nowego `data/models/llm_*`, ostrzeżenie `UWAGA: pomijam llm_…` w `train`/`evaluate` i brak wariantu LLM w dashboardzie. Uruchom ponownie `llm-texts` (za zgodą): wygeneruje tylko brakujące.
 
 **Brak miejsca na dysku.** Python zgłosi `OSError: [Errno 28] No space left on device`. Pobieranie usuwa wtedy niedokończony plik `.part`, a zapisy atomowe nie zostawią połowy pliku z wynikami. Zwolnij miejsce (potrzeba ok. 3,7 GB na `data/raw/` plus zapas) i uruchom etap ponownie.
 
@@ -304,6 +305,8 @@ Najpierw patrz na 3 wiersze `primary`. Pozostałe pomagają zrozumieć, skąd r�
 | Komunikat | Co zrobić |
 |---|---|
 | `Embeddingi wariantu <wariant> nie odpowiadają aktualnej próbce; uruchom sysrekmag-encode` | `encode`, potem `train` |
+| `Embeddingi wariantu <wariant> są nieaktualne albo ich brak; uruchom sysrekmag-encode` (w `train` albo `evaluate`) | `encode`, potem `train` |
+| `UWAGA: pomijam llm_…: teksty wariantu nie są kompletne …` | nic, jeśli to celowe (np. pilotaż nowego promptu); inaczej `llm-texts` (za zgodą), `encode`, `train` |
 | `Brak sieci dwuwieżowej dla wariantu <wariant>; uruchom sysrekmag-train` | `train` |
 | `Sieć dwuwieżowa wariantu <wariant> jest nieaktualna; uruchom sysrekmag-train` | `train` |
 | `Brak embeddingów w models/; uruchom sysrekmag-encode` | `encode` |

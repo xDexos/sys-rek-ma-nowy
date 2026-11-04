@@ -13,7 +13,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 from . import config
 from .config import PATHS, Paths
-from .llm_texts import load_generations
+from .llm_texts import current_generations
 from .storage import read_json, read_pickle, text_hash, write_json, write_npy, write_parquet, write_pickle
 from .texts import llm_text, no_llm_text
 
@@ -40,10 +40,11 @@ def encode(encoder, texts: list[str]) -> np.ndarray:
 
 
 def complete_llm_variants(paths: Paths) -> list[str]:
-    """Warianty llm_* z kompletnym manifestem generacji."""
+    """Warianty llm_*, w których każdy produkt próbki ma generację ważną dla bieżących wejść, promptu i modelu."""
     root = paths.root / "item_texts"
     manifests = sorted(root.glob(f"{config.LLM_PREFIX}*/manifest.json")) if root.is_dir() else []
-    return [m.parent.name for m in manifests if read_json(m).get("complete")]
+    n_items = len(pd.read_parquet(paths.prepared / "items.parquet", columns=["parent_asin"]))
+    return [m.parent.name for m in manifests if len(current_generations(paths, m.parent.name)) == n_items]
 
 
 def variant_texts(paths: Paths, items: pd.DataFrame) -> dict[str, list[str]]:
@@ -51,9 +52,38 @@ def variant_texts(paths: Paths, items: pd.DataFrame) -> dict[str, list[str]]:
     records = items.to_dict(orient="records")
     texts = {config.NO_LLM: [no_llm_text(r) for r in records]}
     for variant in complete_llm_variants(paths):
-        generated = load_generations(paths, variant)
+        generated = current_generations(paths, variant)
         texts[variant] = [llm_text(generated[r["parent_asin"]]) for r in records]
     return texts
+
+
+def _fingerprint(asins: list[str], texts: list[str], encoder_name: str) -> str:
+    return text_hash("\0".join([encoder_name, str(config.MAX_SEQ_LENGTH), *asins, *texts]))
+
+
+def current_fingerprints(paths: Paths, encoder_name: str = config.EMBEDDING_MODEL) -> dict[str, str]:
+    """Wariant -> odcisk, jaki encode zapisałby teraz (no_llm + kompletne warianty LLM)."""
+    items = pd.read_parquet(paths.prepared / "items.parquet")
+    asins = list(items["parent_asin"])
+    return {v: _fingerprint(asins, t, encoder_name) for v, t in variant_texts(paths, items).items()}
+
+
+def current_variants(paths: Paths, encoder_name: str = config.EMBEDDING_MODEL) -> list[str]:
+    """Warianty dla train i evaluate: no_llm, potem llm_* alfabetycznie, z embeddingami zgodnymi z bieżącymi tekstami.
+
+    Nadmiarowe foldery models/<wariant> (np. po zmianie promptu) są pomijane z ostrzeżeniem; bieżący wariant
+    z nieaktualnymi embeddingami to błąd.
+    """
+    current = current_fingerprints(paths, encoder_name)
+    for variant, fingerprint in current.items():
+        manifest = paths.models(variant) / "manifest.json"
+        if not manifest.is_file() or read_json(manifest).get("fingerprint") != fingerprint:
+            raise ValueError(f"Embeddingi wariantu {variant} są nieaktualne albo ich brak; uruchom sysrekmag-encode")
+    root = paths.root / "models"
+    found = {p.parent.name for p in root.glob("*/embeddings.npy")} if root.is_dir() else set()
+    for extra in sorted(found - set(current)):
+        print(f"UWAGA: pomijam {extra}: teksty wariantu nie są kompletne dla bieżącej próbki, promptu i wejść LLM")
+    return [config.NO_LLM, *sorted(v for v in current if v != config.NO_LLM)]
 
 
 def _save_tfidf(matrix: sp.csr_matrix, path) -> None:
@@ -69,10 +99,11 @@ def encode_all(paths: Paths = PATHS, encoder=None, encoder_name: str = config.EM
     result: dict[str, Any] = {}
     for variant, texts in variant_texts(paths, items).items():
         out = paths.models(variant)
-        fingerprint = text_hash("\0".join([encoder_name, str(config.MAX_SEQ_LENGTH), *asins, *texts]))
+        fingerprint = _fingerprint(asins, texts, encoder_name)
         manifest_path = out / "manifest.json"
         if (manifest_path.is_file() and read_json(manifest_path).get("fingerprint") == fingerprint
-                and all((out / f).is_file() for f in ("embeddings.npy", "tfidf.npz", "tfidf_vectorizer.pkl"))):
+                and all((out / f).is_file() for f in ("embeddings.npy", "tfidf.npz", "tfidf_vectorizer.pkl"))
+                and (paths.item_texts(variant) / "texts.parquet").is_file()):
             result[variant] = read_json(manifest_path)
             continue
         encoder = encoder or load_encoder(encoder_name)

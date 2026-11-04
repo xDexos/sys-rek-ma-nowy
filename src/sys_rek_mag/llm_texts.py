@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from . import config
 from .config import PATHS, Paths
-from .storage import read_jsonl, text_hash, write_json, write_jsonl
+from .storage import read_json, read_jsonl, text_hash, write_json, write_jsonl
 from .texts import llm_input_text
 
 SCHEMA_VERSION = 1
@@ -186,10 +186,22 @@ def generate(
     return manifest
 
 
-def load_generations(paths: Paths, variant: str) -> dict[str, dict[str, Any]]:
-    """parent_asin -> wygenerowany wynik (description, features) dla wariantu llm_<model_id>."""
+def current_generations(paths: Paths, variant: str) -> dict[str, dict[str, Any]]:
+    """parent_asin -> wynik (description, features) tylko dla generacji ważnych dla bieżącej próbki.
+
+    Ważna = produkt jest w items.parquet, a skrót aktualnego wejścia z llm_inputs.jsonl, PROMPT_HASH i model
+    zgadzają się z rekordem. Wariant jest kompletny, gdy wynik obejmuje wszystkie produkty próbki.
+    """
+    manifest = paths.item_texts(variant) / "manifest.json"
+    if not manifest.is_file():
+        return {}
+    llm_model = read_json(manifest).get("llm_model")
+    item_ids = set(pd.read_parquet(paths.prepared / "items.parquet", columns=["parent_asin"])["parent_asin"])
+    hashes = {r["parent_asin"]: text_hash(llm_input_text(r)) for r in read_jsonl(paths.prepared / "llm_inputs.jsonl")
+              if r["parent_asin"] in item_ids}
     records = read_jsonl(paths.item_texts(variant) / "generations.jsonl")
-    return {r["parent_asin"]: r["output"] for r in records if r["prompt_hash"] == PROMPT_HASH}
+    return {r["parent_asin"]: r["output"] for r in records
+            if r["parent_asin"] in hashes and _reusable(r, hashes[r["parent_asin"]], llm_model)}
 
 
 def main() -> None:

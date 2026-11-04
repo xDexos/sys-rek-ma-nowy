@@ -16,6 +16,7 @@ from torch.nn import functional as F
 
 from . import config
 from .config import PATHS, SEED, Paths
+from .encode import current_variants
 from .recommend import mean_profiles, ranking_metrics, top_k
 from .storage import file_hash, read_json, write_json
 
@@ -173,9 +174,9 @@ def load_two_tower(paths: Paths, variant: str) -> TwoTower:
 
 
 def main() -> None:
-    argparse.ArgumentParser(description="Trening sieci dwuwieżowej dla każdego wariantu z embeddingami").parse_args()
-    for path in sorted((PATHS.root / "models").glob("*/embeddings.npy")):
-        train_variant(PATHS, path.parent.name)
+    argparse.ArgumentParser(description="Trening sieci dwuwieżowej dla każdego aktualnego wariantu z embeddingami").parse_args()
+    for variant in current_variants(PATHS):  # nieaktualne foldery models/<wariant> są pomijane
+        train_variant(PATHS, variant)
 
 
 if __name__ == "__main__":

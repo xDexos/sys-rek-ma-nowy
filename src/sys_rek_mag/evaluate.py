@@ -14,7 +14,7 @@ from scipy.stats import bootstrap
 
 from . import config
 from .config import PATHS, Paths
-from .encode import load_variant
+from .encode import current_variants, load_variant
 from .recommend import dense_scores, popularity_scores, ranking_metrics, tfidf_scores, top_k
 from .storage import file_hash, read_json, write_csv, write_json, write_parquet
 from .two_tower import fingerprint, load_two_tower, two_tower_scores
@@ -62,14 +62,6 @@ def build_matrices(items: pd.DataFrame, interactions: pd.DataFrame, users: pd.Da
             "train_counts": train_counts}
 
 
-def evaluated_variants(paths: Paths) -> list[str]:
-    """no_llm, potem warianty llm_* alfabetycznie — tylko te z embeddingami."""
-    root = paths.root / "models"
-    found = {p.parent.name for p in root.glob("*/embeddings.npy")} if root.is_dir() else set()
-    llm = sorted(v for v in found if v.startswith(config.LLM_PREFIX))
-    return [config.NO_LLM, *llm] if config.NO_LLM in found else llm
-
-
 def _load_prepared(paths: Paths) -> list[pd.DataFrame]:
     return [pd.read_parquet(paths.prepared / f"{name}.parquet") for name in PREPARED_FILES]
 
@@ -94,9 +86,7 @@ def per_user_metrics(paths: Paths = PATHS, seed: int = config.SEED) -> pd.DataFr
     """Metryki per użytkownik ewaluacyjny; ranking jest deterministyczny, seed musi zgadzać się z treningiem."""
     items, interactions, users = _load_prepared(paths)
     m = build_matrices(items, interactions, users)
-    variants = evaluated_variants(paths)
-    if not variants:
-        raise FileNotFoundError("Brak embeddingów w models/; uruchom sysrekmag-encode")
+    variants = current_variants(paths)
     models: dict[str, dict[str, Any]] = {}
     for variant in variants:
         models[variant] = _load_current(paths, variant, items["parent_asin"].tolist(), seed)
@@ -180,11 +170,12 @@ def evaluate(paths: Paths = PATHS, seed: int = config.SEED) -> dict:
                     "input_fingerprints": _fingerprints(prepared + model_files)}, out / "manifest.json")
     comparisons = compare(per_user, seed)
     write_csv(comparisons, paths.comparisons / "comparisons.csv")
+    variants = list(dict.fromkeys(per_user["variant"]))
     manifest = {**common, "bootstrap_resamples": config.BOOTSTRAP_RESAMPLES, "primary_confidence": PRIMARY_CONFIDENCE,
                 "supporting_confidence": config.SUPPORTING_CONFIDENCE, "users": int(per_user["user_id"].nunique()),
-                "variants": list(dict.fromkeys(per_user["variant"])),
-                "input_fingerprints": _fingerprints([*prepared, *(paths.models(v) / f for v in evaluated_variants(paths)
-                                                                  for f in ("embeddings.npy", "tfidf.npz", "two_tower.pt"))])}
+                "variants": variants,
+                "input_fingerprints": _fingerprints([*prepared, *(paths.models(v) / f for v in variants
+                                                                  if v != config.BASELINE for f in ("embeddings.npy", "tfidf.npz", "two_tower.pt"))])}
     write_json(manifest, paths.comparisons / "manifest.json")
     return manifest
 

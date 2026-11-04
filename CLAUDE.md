@@ -20,7 +20,7 @@ uv run streamlit run dashboard.py
 
 ## Architektura
 
-- Niezależne etapy CLI komunikują się przez pliki w `data/` (gitignored); każdy pisze `manifest.json`. Cache tylko przy zgodnych odciskach (LLM: skrót wejścia + `PROMPT_HASH` + model; encode: enkoder + max długość + teksty; train: skróty embeddingów i interakcji + seed + hiperparametry). `evaluate` odmawia pracy na nieaktualnych embeddingach/sieci.
+- Niezależne etapy CLI komunikują się przez pliki w `data/` (gitignored); każdy pisze `manifest.json`. Cache tylko przy zgodnych odciskach (LLM: skrót wejścia + `PROMPT_HASH` + model; encode: enkoder + max długość + teksty; train: skróty embeddingów i interakcji + seed + hiperparametry). Kompletność wariantu LLM liczona z bieżących wejść (`current_generations`), nie z flagi `complete`; `train`/`evaluate` biorą warianty z `current_variants` (nieaktualne `models/<v>` pomijają z ostrzeżeniem), a `evaluate` odmawia pracy na nieaktualnych embeddingach/sieci bieżącego wariantu.
 - `config.py` to jedno źródło ścieżek i stałych protokołu, wczytuje `.env`. `Paths(root)`; testy podają `Paths(tmp_path / "data")`.
 - `texts.py`: stałe szablony. `recommend.py`: czyste funkcje rankingu i metryk na macierzach użytkownik × produkt. Porównania to dane (`comparison_specs`).
 - Warianty: `no_llm`, `llm_<model_id>` (`model_id("gemma4:e2b") == "gemma4_e2b"`). Mechanizmy: `tfidf`, `dense`, `two_tower`; punkt odniesienia `baseline/popularity`.

@@ -8,7 +8,7 @@ from conftest import PREPARE_SIZES, FakeClient
 from sys_rek_mag import llm_texts
 from sys_rek_mag.config import llm_variant
 from sys_rek_mag.dataset import prepare
-from sys_rek_mag.llm_texts import ItemDescription, generate, load_generations
+from sys_rek_mag.llm_texts import ItemDescription, generate, current_generations
 from sys_rek_mag.storage import read_jsonl, read_json
 from sys_rek_mag.texts import llm_input_text
 
@@ -56,7 +56,7 @@ def test_generate_writes_and_caches(prepared):
     manifest = generate("fake:model", prepared, client=client)
     n = len(pd.read_parquet(prepared.prepared / "items.parquet"))
     assert client.calls == n and manifest["complete"] is True
-    gens = load_generations(prepared, llm_variant("fake_model"))
+    gens = current_generations(prepared, llm_variant("fake_model"))
     assert len(gens) == n
     first = next(iter(gens.values()))
     assert first["description"] == DESC
@@ -101,4 +101,7 @@ def test_stale_generations_are_not_complete_or_loaded(prepared, monkeypatch):
         generate("fake:model", prepared, client=FakeClient(["not json"]))
     manifest = read_json(_out(prepared) / "manifest.json")
     assert manifest["complete"] is False and manifest["valid_generations"] == 0
-    assert load_generations(prepared, llm_variant("fake_model")) == {}
+    assert current_generations(prepared, llm_variant("fake_model")) == {}
+    regenerated = FakeClient([VALID])  # zmiana PROMPT_HASH wymusza wygenerowanie wszystkiego od nowa
+    assert generate("fake:model", prepared, client=regenerated)["complete"] is True
+    assert regenerated.calls == len(pd.read_parquet(prepared.prepared / "items.parquet"))

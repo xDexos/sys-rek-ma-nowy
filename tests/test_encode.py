@@ -54,7 +54,7 @@ def test_cache_skips_unchanged(prepared):
 def test_incomplete_llm_variant_skipped(prepared, monkeypatch):
     other = prepared.item_texts(llm_variant("partial"))
     other.mkdir(parents=True)
-    (other / "manifest.json").write_text('{"complete": false}')
+    (other / "manifest.json").write_text('{"llm_model": "partial", "complete": true}')  # flaga nie decyduje
     assert complete_llm_variants(prepared) == [LLM]
     assert set(variant_texts(prepared, _items(prepared))) == {"no_llm", LLM}
 

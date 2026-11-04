@@ -12,7 +12,7 @@ from .config import PATHS, Paths
 from .encode import encode, load_encoder, load_variant
 from .evaluate import PRIMARY_METRIC
 from .glossary import GLOSSARY
-from .llm_texts import load_generations
+from .llm_texts import current_generations
 from .recommend import query_scores
 from .storage import read_json, read_jsonl
 from .two_tower import load_two_tower, two_tower_query
@@ -132,7 +132,7 @@ def _profile_tab(paths: Paths, llm: str | None, mechanism: str, n: int) -> None:
                         "np. bright LED bulbs for headlights", height=120)
     if not text.strip():
         return
-    generated = load_generations(paths, llm)
+    generated = current_generations(paths, llm)
     for column, variant in zip(st.columns(2), (config.NO_LLM, llm), strict=True):
         top = custom_top_n(paths, variant, mechanism, text, n, None if mechanism == "tfidf" else _encoder())
         column.markdown(f"**{label(variant)}**")

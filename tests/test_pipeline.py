@@ -44,3 +44,55 @@ def test_full_pipeline(paths, raw, monkeypatch):
 
     evaluate(paths)
     pd.testing.assert_frame_equal(first, pd.read_csv(paths.comparisons / "comparisons.csv"))
+
+
+def _run_after_llm(paths):
+    """encode → train → evaluate tak jak CLI: warianty z current_variants (nie ze skanu folderów)."""
+    from sys_rek_mag.encode import current_variants
+
+    encode_all(paths, FakeEncoder())
+    for variant in current_variants(paths):
+        train_variant(paths, variant)
+    return evaluate(paths)
+
+
+def _full_run(paths, monkeypatch):
+    monkeypatch.setattr(llm_texts, "server_info", lambda *a: {"server": "fake"})
+    prepare(paths, **PREPARE_SIZES)
+    generate("fake:model", paths, client=FakeClient(responder=responder))
+    assert _run_after_llm(paths)["variants"] == [NO_LLM, LLM, BASELINE]
+
+
+def test_prompt_change_with_pilot_drops_stale_llm_variant(paths, raw, monkeypatch, capsys):
+    _full_run(paths, monkeypatch)
+    monkeypatch.setattr(llm_texts, "PROMPT_HASH", "new-prompt")
+    generate("fake:model", paths, client=FakeClient(responder=responder), limit=2)
+    capsys.readouterr()
+    assert _run_after_llm(paths)["variants"] == [NO_LLM, BASELINE]  # stare models/llm_* nie są oceniane
+    assert f"UWAGA: pomijam {LLM}" in capsys.readouterr().out
+
+
+def test_reprepare_with_changed_inputs_drops_stale_generations(paths, raw, monkeypatch):
+    from sys_rek_mag import config
+    from sys_rek_mag.encode import complete_llm_variants
+
+    _full_run(paths, monkeypatch)
+    monkeypatch.setattr(config, "REVIEW_MAX_CHARS", 10)  # te same produkty, inne wejścia LLM
+    prepare(paths, **PREPARE_SIZES)
+    assert complete_llm_variants(paths) == [] and llm_texts.current_generations(paths, LLM) == {}
+    assert _run_after_llm(paths)["variants"] == [NO_LLM, BASELINE]
+
+
+def test_current_variant_with_stale_models_fails_clearly(paths, raw, monkeypatch):
+    import pytest
+
+    from sys_rek_mag.encode import current_variants
+
+    _full_run(paths, monkeypatch)
+    monkeypatch.setattr(llm_texts, "PROMPT_HASH", "new-prompt")
+    other = lambda messages: responder(messages).replace("customers like", "drivers praise")  # noqa: E731
+    generate("fake:model", paths, client=FakeClient(responder=other))  # komplet nowych tekstów, bez encode
+    with pytest.raises(ValueError, match="sysrekmag-encode"):
+        current_variants(paths)
+    with pytest.raises(ValueError, match="sysrekmag-encode"):
+        evaluate(paths)

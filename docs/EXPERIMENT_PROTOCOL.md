@@ -61,7 +61,7 @@ Kod: `src/sys_rek_mag/llm_texts.py`.
 - **LLM widzi tylko opinie.** Nie widzi tytułu produktu, marki ani opisu ze sklepu.
 - **Wyjście (JSON, walidacja pydantic):** `description` (prompt: „2-4 sentences, at most 80 words”, walidator: 20–80 słów) i `features` (5–12 par `aspect: value`, małe litery). Prompt zabrania wspominania ocen i popularności.
 - `response_format: json_schema`, temperatura 0, seed 2026, `max_tokens = 1000`, maks. 3 próby z komunikatem błędu walidacji.
-- **Ważność generacji:** generacja jest ważna tylko przy zgodnej trójce (`source_hash` = skrót tekstu wejścia, `PROMPT_HASH` = skrót promptu i schematu, nazwa modelu). Wariant jest **kompletny** tylko wtedy, gdy każdy produkt próbki ma ważną generację (`complete: true` w manifeście). `sysrekmag-encode` pomija warianty niekompletne.
+- **Ważność generacji:** generacja jest ważna tylko przy zgodnej trójce (`source_hash` = skrót tekstu wejścia, `PROMPT_HASH` = skrót promptu i schematu, nazwa modelu). Wariant jest **kompletny** tylko wtedy, gdy każdy produkt próbki ma ważną generację względem bieżących wejść (`encode` sprawdza to sam przy każdym uruchomieniu; `complete` w manifeście jest tylko informacją). `sysrekmag-encode` pomija warianty niekompletne, a `train` i `evaluate` ich nieaktualne embeddingi.
 - Manifest zapisuje prompt, schemat, `prompt_hash`, serwer, wersję, kwantyzację, sprzęt (`LLM_HARDWARE`) i czasy; każda generacja ma swój czas w `generations.jsonl`.
 
 ## Mechanizmy rekomendacji
