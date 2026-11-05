@@ -147,6 +147,7 @@ class FakeClient:
 
     def create(self, **kw):
         self.calls += 1
+        self.last_kwargs = kw
         if self.responder:
             content = self.responder(kw["messages"])
         else:

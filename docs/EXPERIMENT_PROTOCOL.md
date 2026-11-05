@@ -13,7 +13,7 @@ Amazon Reviews 2023, kategoria Automotive (pliki, adresy i rozmiary: `docs/DATA.
 - **Kandydaci:** `parent_asin` z treningowej części 5-core (`Automotive.train.csv.gz`). Pliki `valid`/`test` 5-core nie są czytane.
 - **Warunki:** metadane z niepustym tytułem oraz ≥ `MIN_ITEM_TRAIN_REVIEWS = 5` opinii z niepustym tekstem przed `T1` (liczone w pełnym pliku opinii).
 - **Wybór:** top `N_ITEMS` produktów według liczby tych opinii; remis rozstrzyga niższy `parent_asin`. Wybór zależy wyłącznie od danych sprzed `T1`.
-- **N_ITEMS = 1500** to wartość wstępna. Ostateczną wartość ustala pilotaż (sekcja „Pilotaż i reguła ustalenia N”).
+- **N_ITEMS = 1500**, potwierdzone pilotażem 2026-11-05 (sekcja „Pilotaż i reguła ustalenia N”, rejestr zmian).
 - **Źródło interakcji:** historie, cele, maskowanie, popularność i trening sieci pochodzą z **pełnego pliku opinii** `Automotive.jsonl.gz`, zawężonego do produktów z próbki. Plik 5-core służy tylko do wyboru kandydatów.
 - **Jedna para użytkownik–produkt liczy się raz**, według najwcześniejszej opinii. Przy równych znacznikach czasu zostaje pierwsza opinia w kolejności pliku.
 
@@ -60,7 +60,7 @@ Kod: `src/sys_rek_mag/llm_texts.py`.
 - **Wejście:** do `MAX_REVIEWS_PER_ITEM = 20` opinii treningowych z niepustym tekstem, w kolejności: najdłuższy tekst (po usunięciu białych znaków z brzegów), potem nowsze, potem `user_id`. `helpful_vote` nie jest używany, bo w zbiorze to stan głosów z chwili zebrania danych, czyli także głosy oddane po `T1`. Każda opinia ma ocenę w gwiazdkach i tytuł opinii; tekst obcięty do `REVIEW_MAX_CHARS = 800` znaków.
 - **LLM widzi tylko opinie.** Nie widzi tytułu produktu, marki ani opisu ze sklepu.
 - **Wyjście (JSON, walidacja pydantic):** `description` (prompt: „2-4 sentences, at most 80 words”, walidator: 20–80 słów) i `features` (5–12 par `aspect: value`, małe litery). Prompt zabrania wspominania ocen i popularności.
-- `response_format: json_schema`, temperatura 0, seed 2026, `max_tokens = 1000`, maks. 3 próby z komunikatem błędu walidacji.
+- `response_format: json_schema`, temperatura 0, seed 2026, `max_tokens = 1000`, tryb myślenia wyłączony (`reasoning_effort: none`, część `PROMPT_HASH`), maks. 3 próby z komunikatem błędu walidacji.
 - **Ważność generacji:** generacja jest ważna tylko przy zgodnej trójce (`source_hash` = skrót tekstu wejścia, `PROMPT_HASH` = skrót promptu i schematu, nazwa modelu). Wariant jest **kompletny** tylko wtedy, gdy każdy produkt próbki ma ważną generację względem bieżących wejść (`encode` sprawdza to sam przy każdym uruchomieniu; `complete` w manifeście jest tylko informacją). `sysrekmag-encode` pomija warianty niekompletne, a `train` i `evaluate` ich nieaktualne embeddingi.
 - Manifest zapisuje prompt, schemat, `prompt_hash`, serwer, wersję, kwantyzację, sprzęt (`LLM_HARDWARE`), czasy oraz maksimum i medianę `prompt_tokens` (dla Ollamy także `context_length` modelu); każda generacja ma w `generations.jsonl` swój czas i `prompt_tokens` z `usage` serwera, żeby wykryć ucięcie kontekstu.
 
@@ -131,3 +131,4 @@ Binarna istotność, `k ∈ TOP_KS = (5, 10)`, makro po użytkownikach ewaluacyj
 
 - 2026-11-04: pierwsza wersja protokołu, spisana przed pobraniem danych, pilotażem i jakąkolwiek ewaluacją. `N_ITEMS = 1500` jest wartością wstępną do potwierdzenia po pilotażu.
 - 2026-11-04: kolejność opinii na wejściu LLM zmieniona z „najwięcej `helpful_vote`, potem nowsze, potem `user_id`” na „najdłuższy tekst, potem nowsze, potem `user_id`”. Powód: `helpful_vote` to liczba głosów z chwili zebrania zbioru, więc zawiera głosy oddane po `T1` i przemycała informację spoza okresu treningowego do wyboru opinii. Długość tekstu i czas opinii są znane przed `T1`. Zmiana przed pilotażem i przed jakąkolwiek ewaluacją; nic nie trzeba przeliczać.
+- 2026-11-05: po pilotażu (wyniki w `docs/MODELS.md`) wyłączony tryb myślenia modelu (`reasoning_effort: none`, wchodzi do `PROMPT_HASH`). Powód: myślenie zajmowało ok. 2/3 tokenów odpowiedzi; czas spadł z 16,9 do 5,3 s na produkt bez widocznej straty jakości, a wszystkie odpowiedzi przeszły walidację za 1. próbą. Generacje z pilotażu z myśleniem są nieważne i nie trafią do wyników. `N_ITEMS = 1500` potwierdzone regułą N (1500 × 5,3 s ≈ 2,2 h ≤ 4 h). Zmiana przed jakąkolwiek ewaluacją.

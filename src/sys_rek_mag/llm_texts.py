@@ -20,6 +20,8 @@ from .texts import llm_input_text
 SCHEMA_VERSION = 1
 MAX_RETRIES = 3
 MAX_TOKENS = 1000
+# Tryb myślenia wyłączony: w pilotażu zjadał ~2/3 tokenów odpowiedzi i ponad połowę czasu.
+REASONING_EFFORT = "none"
 CHECKPOINT_EVERY = 10
 
 SYSTEM_PROMPT = """You are a product analyst. You read ONLY customer reviews of one automotive product and write a description of it for a recommender system.
@@ -62,7 +64,7 @@ RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {"name": "item_description", "strict": True, "schema": ItemDescription.model_json_schema()},
 }
-PROMPT_HASH = text_hash("\n".join([SYSTEM_PROMPT, json.dumps(RESPONSE_FORMAT, sort_keys=True), str(SCHEMA_VERSION)]))
+PROMPT_HASH = text_hash("\n".join([SYSTEM_PROMPT, json.dumps(RESPONSE_FORMAT, sort_keys=True), str(SCHEMA_VERSION), REASONING_EFFORT]))
 
 
 def make_client(base_url: str = config.LLM_BASE_URL, api_key: str = config.LLM_API_KEY):
@@ -81,7 +83,7 @@ def generate_one(client, record: dict[str, Any], llm_model: str, seed: int = con
     for attempt in range(1, MAX_RETRIES + 1):
         response = client.chat.completions.create(
             model=llm_model, messages=messages, temperature=0, seed=seed,
-            max_tokens=MAX_TOKENS, response_format=RESPONSE_FORMAT,
+            max_tokens=MAX_TOKENS, response_format=RESPONSE_FORMAT, reasoning_effort=REASONING_EFFORT,
         )
         choice = response.choices[0]
         raw = choice.message.content or ""
@@ -182,6 +184,7 @@ def generate(
         "server": server_info(str(client.base_url), llm_model), "quantization_declared": quantization,
         "hardware": config.LLM_HARDWARE, "system_prompt": SYSTEM_PROMPT, "response_format": RESPONSE_FORMAT,
         "prompt_hash": PROMPT_HASH, "temperature": 0, "seed": seed, "max_tokens": MAX_TOKENS,
+        "reasoning_effort": REASONING_EFFORT,
         "items": len(item_ids), "valid_generations": len(valid), "failed_generations": len(failures),
         "complete": valid == item_ids, "mean_seconds_last_run": mean_seconds,
         "prompt_tokens_max": max(tokens) if tokens else None,

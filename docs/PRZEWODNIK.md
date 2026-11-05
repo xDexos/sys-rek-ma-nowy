@@ -183,7 +183,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 |---|---|---|---|---|---|
 | `uv run sysrekmag-download` | pobiera 5 plików Amazon, istniejące pomija | internet | `data/raw/` | ok. 3,7 GB, zależy od łącza | gdy brakuje pliku (uszkodzony usuń ręcznie) |
 | `uv run sysrekmag-prepare` | wybiera produkty, buduje interakcje, użytkowników i wejścia LLM | `data/raw/` | `data/prepared/` | kilkanaście minut (2× czyta 2,29 GB opinii) | po zmianie stałych próbki w `config.py` lub decyzji o `--subcategory` |
-| `uv run sysrekmag-llm-texts --model gemma4:e2b` | **uruchamia LLM**: opis i cechy z opinii | `prepared/items.parquet`, `llm_inputs.jsonl` | `item_texts/llm_<model_id>/` | pełna próbka ≤ ok. 4 h | po zmianie promptu, po ponownym `prepare`, gdy wariant jest niekompletny |
+| `uv run sysrekmag-llm-texts --model gemma4:e2b` | **uruchamia LLM**: opis i cechy z opinii | `prepared/items.parquet`, `llm_inputs.jsonl` | `item_texts/llm_<model_id>/` | pełna próbka ok. 2,2 h (`gemma4:e2b`, RX 6600) | po zmianie promptu, po ponownym `prepare`, gdy wariant jest niekompletny |
 | `uv run sysrekmag-encode` | teksty wariantów, embeddingi MiniLM, TF-IDF | `prepared/items.parquet`, kompletne `item_texts/llm_*` | `item_texts/<wariant>/texts.parquet`, `models/<wariant>/` | minuty | zawsze po zmianie tekstów; sam pomija niezmienione warianty |
 | `uv run sysrekmag-train` | sieć dwuwieżowa dla każdego aktualnego wariantu (nieaktualne foldery `models/` pomija) | `models/<wariant>/embeddings.npy`, `prepared/` | `models/<wariant>/two_tower*` | minuty na wariant | po `encode`; sam pomija aktualne modele |
 | `uv run sysrekmag-evaluate` | metryki i bootstrap | `prepared/`, `models/` | `data/results/` | minuty | po każdej zmianie wyżej; liczy zawsze od nowa |
@@ -212,7 +212,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 
 Przykłady:
 
-- **Zmieniasz prompt** w `llm_texts.py` → zmienia się `PROMPT_HASH` → wszystkie stare generacje są nieważne → `llm-texts` generuje wszystko od nowa (LLM, ok. 4 h). Potem `encode`, `train`, `evaluate` przeliczają się same, bo zmieniły się teksty. Jeśli po zmianie promptu zrobisz tylko pilotaż (`--limit`), wariant jest niekompletny: `encode` go pomija, a `train` i `evaluate` pomijają jego stare `models/llm_*` (ostrzeżenie `UWAGA: pomijam …`), zamiast liczyć na tekstach ze starego promptu.
+- **Zmieniasz prompt** w `llm_texts.py` → zmienia się `PROMPT_HASH` → wszystkie stare generacje są nieważne → `llm-texts` generuje wszystko od nowa (LLM, ok. 2,2 h dla `gemma4:e2b`). Potem `encode`, `train`, `evaluate` przeliczają się same, bo zmieniły się teksty. Jeśli po zmianie promptu zrobisz tylko pilotaż (`--limit`), wariant jest niekompletny: `encode` go pomija, a `train` i `evaluate` pomijają jego stare `models/llm_*` (ostrzeżenie `UWAGA: pomijam …`), zamiast liczyć na tekstach ze starego promptu.
 - **Zmieniasz `N_ITEMS`** → `prepare` od nowa → uruchom `llm-texts` (wygeneruje tylko nowe produkty; stare z tym samym wejściem zostają) → `encode` → `train` → `evaluate`.
 - **Zmieniasz tylko hiperparametr sieci** w `two_tower.py` → `train` sam to wykryje (hiperparametry są w odcisku); `encode` nic nie robi.
 

@@ -10,7 +10,7 @@ Rola dokumentu: jakie modele generują teksty i kodują je, na jakim sprzęcie, 
 | serwer | Ollama, API zgodne z OpenAI (`LLM_BASE_URL`, domyślnie `http://localhost:11434/v1`) |
 | kwantyzacja | Q4_K_M (biblioteka Ollamy) |
 | sprzęt | AMD RX 6600 8 GB (komputer autora) |
-| ustawienia | temperatura 0, seed 2026, `max_tokens` 1000, maks. 3 próby |
+| ustawienia | temperatura 0, seed 2026, `max_tokens` 1000, tryb myślenia wyłączony (`reasoning_effort: none`), maks. 3 próby |
 
 Serwer, wersję i kwantyzację manifest odczytuje sam z Ollamy (`/api/version`, `/api/show`). Sprzęt wpisz w `.env` jako `LLM_HARDWARE` (np. `RX 6600 8 GB, 15 GB RAM`), bo serwer go nie podaje.
 
@@ -20,20 +20,24 @@ Serwer, wersję i kwantyzację manifest odczytuje sam z Ollamy (`/api/version`, 
 
 ## Pilotaż
 
-**Do wypełnienia po pilotażu.** Polecenie (uruchamia LLM, tylko za zgodą autora):
+Polecenie (uruchamia LLM, tylko za zgodą autora):
 
 ```bash
 uv run sysrekmag-llm-texts --model gemma4:e2b --limit 20
 ```
 
-| Pole | Wynik |
-|---|---|
-| data, wersja Ollamy | — |
-| średni / mediana / maks. czas na produkt | — |
-| poprawne za 1. próbą (z 20) | — |
-| czy LLM bez tytułu rozpoznaje, czym jest produkt (ocena autora) | — |
-| czy wejście mieści się w kontekście modelu (`prompt_tokens_max` vs ustawiony kontekst, zob. niżej) | — |
-| wyznaczone `N_ITEMS` (≤ ~4 h) i szacowany czas pełnego przebiegu | — |
+Wynik z 2026-11-05 (Ollama 0.34.3, `OLLAMA_CONTEXT_LENGTH=8192`). Dwa przebiegi na tych samych produktach:
+
+| Pole | Z trybem myślenia (20 produktów) | Bez trybu myślenia (10 produktów, ustawienie ostateczne) |
+|---|---|---|
+| średni / mediana / maks. czas na produkt | 16,9 / 15,3 / 24,1 s | 5,3 / 5,4 / 5,6 s |
+| poprawne za 1. próbą | 17 z 20 | 10 z 10 |
+| tokeny odpowiedzi (sonda na 1 produkcie) | 913 (ok. 2/3 to myślenie) | 294 |
+| czy LLM bez tytułu rozpoznaje, czym jest produkt | tak, 20 z 20 (wstępna ocena; do potwierdzenia przez autora) | tak, 10 z 10 |
+| `prompt_tokens` min / mediana / maks. | 3305 / 4292 / 4653 (mieści się w 8192; przy domyślnym 4096 większość byłaby ucięta) | jak obok (to samo wejście) |
+| wyznaczone `N_ITEMS` i czas pełnego przebiegu | — | **1500**, ok. 2,2 h (1500 × 5,3 s) |
+
+Drobne usterki widoczne w pilotażu: niejednolite nazwy cech (`mounting_hardware` i `mounting hardware`), czasem powtórzony aspekt, pojedyncza nieścisłość (rozgałęźnik na 3 gniazda opisany jako „na dwa”, zgodnie z częścią opinii o starszym wariancie). Nie blokują pełnego przebiegu.
 
 Na co uważać:
 

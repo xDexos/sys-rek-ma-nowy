@@ -123,3 +123,10 @@ def test_server_info_ollama_context_length(monkeypatch):
     monkeypatch.setattr(llm_texts, "_get_json", lambda url, payload=None: answers.get(url))
     info = SERVER_INFO("http://h/v1", "gemma4:e2b")
     assert info["server"] == "ollama" and info["context_length"] == 131072 and info["quantization"] == "Q4_K_M"
+
+
+def test_thinking_disabled():
+    client = FakeClient([VALID])
+    record = {"reviews": [{"rating": 5.0, "title": "Great", "text": "Works well."}]}
+    llm_texts.generate_one(client, record, "fake_model")
+    assert client.last_kwargs["reasoning_effort"] == "none"
