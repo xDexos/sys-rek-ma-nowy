@@ -25,18 +25,33 @@ PRIMARY_METRIC = "ndcg_at_10"
 BATCH_USERS = 4000
 PRIMARY_CONFIDENCE = 1 - config.FAMILY_ALPHA / config.PRIMARY_COMPARISONS_PER_MODEL
 PREPARED_FILES = ("items", "interactions", "users")
+SPLITS = ("test", "valid")
 COMPARISON_COLUMNS = ("variant", "baseline", "mechanism", "metric", "role", "confidence", "users", "baseline_mean",
                       "variant_mean", "delta", "delta_relative", "ci_low", "ci_high", "conclusion")
 MECHANISM_FILES = {"tfidf": ("tfidf.npz",), "dense": ("embeddings.npy",), "two_tower": ("embeddings.npy", "two_tower.pt")}
 
 
-def build_matrices(items: pd.DataFrame, interactions: pd.DataFrame, users: pd.DataFrame) -> dict[str, Any]:
-    """Macierze użytkownik ewaluacyjny × produkt (kolumny w porządku items, czyli rosnącego parent_asin)."""
+def build_matrices(items: pd.DataFrame, interactions: pd.DataFrame, users: pd.DataFrame,
+                   split: str = "test") -> dict[str, Any]:
+    """Macierze użytkownik ewaluacyjny × produkt (kolumny w porządku items, czyli rosnącego parent_asin).
+
+    split="valid": cele z okresu walidacyjnego, do strojenia (np. promptu) bez zaglądania w test.
+    Użytkownicy: ≥1 pozytyw w treningu i ≥1 nowy pozytyw w walidacji; widziane = tylko trening."""
+    if split not in SPLITS:
+        raise ValueError(f"split musi być jednym z {SPLITS}")
     asins = pd.Index(items["parent_asin"])
     if not asins.is_monotonic_increasing or not asins.is_unique:
         raise ValueError("items.parquet musi być posortowany po parent_asin bez duplikatów")
     frame = interactions[interactions["parent_asin"].isin(asins)]
-    eval_users = np.sort(users.loc[users["eval"], "user_id"].to_numpy(dtype=str))
+    if split == "test":
+        eval_users = np.sort(users.loc[users["eval"], "user_id"].to_numpy(dtype=str))
+    else:
+        positive = frame["rating"].ge(config.POSITIVE_RATING)
+        trained = set(frame.loc[positive & frame["split"].eq("train"), "user_id"])
+        targets = frame[positive & frame["split"].eq("valid")]
+        targets = targets[~targets.set_index(["user_id", "parent_asin"]).index.isin(
+            frame.loc[frame["split"].eq("train")].set_index(["user_id", "parent_asin"]).index)]
+        eval_users = np.sort(np.array(sorted(set(targets["user_id"]) & trained), dtype=str))
     cols = asins.get_indexer(frame["parent_asin"])
     train_counts = np.bincount(cols[frame["split"].eq("train").to_numpy()], minlength=len(asins))
     rows = pd.Index(eval_users).get_indexer(frame["user_id"])
@@ -44,7 +59,7 @@ def build_matrices(items: pd.DataFrame, interactions: pd.DataFrame, users: pd.Da
     frame, rows, cols = frame[keep], rows[keep], cols[keep]
     shape = (len(eval_users), len(asins))
     positive = frame["rating"].ge(config.POSITIVE_RATING).to_numpy()
-    split = frame["split"]
+    target, split = split, frame["split"]
 
     def matrix(mask: np.ndarray) -> sparse.csr_matrix:
         out = sparse.csr_matrix((np.ones(mask.sum()), (rows[mask], cols[mask])), shape=shape)
@@ -52,8 +67,9 @@ def build_matrices(items: pd.DataFrame, interactions: pd.DataFrame, users: pd.Da
         return out
 
     history = matrix(positive & split.eq("train").to_numpy())
-    seen = matrix(split.isin(["train", "valid"]).to_numpy())  # każda interakcja przed T2
-    relevant = (matrix(positive & split.eq("test").to_numpy()).toarray() > 0) & ~(seen.toarray() > 0)
+    seen_splits = ["train", "valid"] if target == "test" else ["train"]  # każda interakcja przed okresem celów
+    seen = matrix(split.isin(seen_splits).to_numpy())
+    relevant = (matrix(positive & split.eq(target).to_numpy()).toarray() > 0) & ~(seen.toarray() > 0)
     if (np.diff(history.indptr) == 0).any():
         raise ValueError("Użytkownik ewaluacyjny bez pozytywu w treningu; uruchom ponownie sysrekmag-prepare")
     if not relevant.any(axis=1).all():
@@ -82,10 +98,10 @@ def _load_current(paths: Paths, variant: str, asins: list[str], seed: int) -> di
     return data | {"two_tower": load_two_tower(paths, variant)}
 
 
-def per_user_metrics(paths: Paths = PATHS, seed: int = config.SEED) -> pd.DataFrame:
+def per_user_metrics(paths: Paths = PATHS, seed: int = config.SEED, split: str = "test") -> pd.DataFrame:
     """Metryki per użytkownik ewaluacyjny; ranking jest deterministyczny, seed musi zgadzać się z treningiem."""
     items, interactions, users = _load_prepared(paths)
-    m = build_matrices(items, interactions, users)
+    m = build_matrices(items, interactions, users, split)
     variants = current_variants(paths)
     models: dict[str, dict[str, Any]] = {}
     for variant in variants:
@@ -157,6 +173,19 @@ def _fingerprints(files: list[Path]) -> dict[str, str]:
     return {f"{path.parent.name}/{path.name}": file_hash(path) for path in files}
 
 
+def evaluate_valid(paths: Paths = PATHS, seed: int = config.SEED) -> pd.DataFrame:
+    """Ocena na okresie walidacyjnym; zapis osobno (results_valid/), żeby nie mieszać z wynikami testu."""
+    per_user = per_user_metrics(paths, seed, split="valid")
+    comparisons = compare(per_user, seed)
+    out = paths.root / "results_valid"
+    write_csv(per_user.groupby(["variant", "mechanism"], sort=False)[list(METRICS)].mean().reset_index(),
+              out / "metrics.csv")
+    write_csv(comparisons, out / "comparisons.csv")
+    write_json({"seed": seed, "split": "valid", "users": int(per_user["user_id"].nunique()),
+                "variants": list(dict.fromkeys(per_user["variant"]))}, out / "manifest.json")
+    return comparisons
+
+
 def evaluate(paths: Paths = PATHS, seed: int = config.SEED) -> dict:
     per_user = per_user_metrics(paths, seed)
     prepared = [paths.prepared / f"{name}.parquet" for name in PREPARED_FILES]
@@ -181,7 +210,14 @@ def evaluate(paths: Paths = PATHS, seed: int = config.SEED) -> dict:
 
 
 def main() -> None:
-    argparse.ArgumentParser(description="Ewaluacja: metryki per użytkownik i sparowany bootstrap llm_* vs no_llm").parse_args()
+    parser = argparse.ArgumentParser(description="Ewaluacja: metryki per użytkownik i sparowany bootstrap llm_* vs no_llm")
+    parser.add_argument("--split", choices=SPLITS, default="test",
+                        help="valid = strojenie na okresie walidacyjnym, wynik w data/results_valid/ (test bez zmian)")
+    if parser.parse_args().split == "valid":
+        comparisons = evaluate_valid()
+        print(f"Walidacja: wyniki w {PATHS.root / 'results_valid'}")
+        print(comparisons[comparisons["role"].eq("primary")].to_string(index=False))
+        return
     manifest = evaluate()
     print(f"Ocenieni użytkownicy: {manifest['users']}; wyniki w {PATHS.results_root}")
     comparisons = pd.read_csv(PATHS.comparisons / "comparisons.csv")

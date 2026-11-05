@@ -130,3 +130,9 @@ def test_thinking_disabled():
     record = {"reviews": [{"rating": 5.0, "title": "Great", "text": "Works well."}]}
     llm_texts.generate_one(client, record, "fake_model")
     assert client.last_kwargs["reasoning_effort"] == "none"
+
+
+def test_feature_labels_unify_underscores():
+    parsed = ItemDescription.model_validate({"description": DESC, "features": [
+        {"aspect": "Mounting_Hardware", "value": "Hex_bolts"}, *FEATURES[:5]]})
+    assert (parsed.features[0].aspect, parsed.features[0].value) == ("mounting hardware", "hex bolts")

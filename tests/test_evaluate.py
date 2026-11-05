@@ -39,6 +39,30 @@ def test_valid_period_items_masked():
         evaluate.build_matrices(items, interactions, users)
 
 
+
+def test_valid_split_targets_validation_period():
+    items = pd.DataFrame({"parent_asin": ["A", "B", "C", "D"]})
+    rows = [("u", "A", 5.0, T1 - 1, "train"), ("u", "B", 5.0, T1, "valid"), ("u", "C", 5.0, T2, "test"),
+            ("v", "A", 5.0, T1 - 2, "train"), ("v", "A", 5.0, T1 + 1, "valid"),  # v: walidacja tylko powtórka
+            ("w", "B", 5.0, T1 + 2, "valid"), ("x", "A", 5.0, T1 - 3, "train"), ("x", "D", 2.0, T1 + 3, "valid")]
+    interactions = pd.DataFrame(rows, columns=["user_id", "parent_asin", "rating", "timestamp", "split"])
+    users = pd.DataFrame({"user_id": ["u", "v", "w", "x"], "eval": [True, False, False, False]})
+    m = evaluate.build_matrices(items, interactions, users, split="valid")
+    assert m["eval_users"].tolist() == ["u"]  # w bez historii, v bez nowego celu, x bez pozytywnego celu
+    assert m["seen"].toarray().tolist() == [[1, 0, 0, 0]]  # tylko trening; test w ogóle nie wchodzi
+    assert m["relevant"].tolist() == [[False, True, False, False]]
+    with pytest.raises(ValueError, match="split"):
+        evaluate.build_matrices(items, interactions, users, split="tset")
+
+
+def test_evaluate_valid_writes_separately(trained):
+    before = sorted(p.relative_to(trained.root) for p in trained.results_root.rglob("*")) if trained.results_root.exists() else []
+    comparisons = evaluate.evaluate_valid(trained, seed=2026)
+    assert (trained.root / "results_valid" / "metrics.csv").is_file()
+    assert list(comparisons.columns) == list(evaluate.COMPARISON_COLUMNS)
+    after = sorted(p.relative_to(trained.root) for p in trained.results_root.rglob("*")) if trained.results_root.exists() else []
+    assert before == after  # wyniki testu nietknięte
+
 def test_only_eval_users_scored(trained):
     per_user = evaluate.per_user_metrics(trained, seed=2026)
     eval_users = pd.read_parquet(trained.prepared / "users.parquet").query("eval")["user_id"]

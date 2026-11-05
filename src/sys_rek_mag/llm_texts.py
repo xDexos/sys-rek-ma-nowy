@@ -17,20 +17,26 @@ from .config import PATHS, Paths
 from .storage import read_json, read_jsonl, text_hash, write_json, write_jsonl
 from .texts import llm_input_text
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MAX_RETRIES = 3
 MAX_TOKENS = 1000
 # Tryb myślenia wyłączony: w pilotażu zjadał ~2/3 tokenów odpowiedzi i ponad połowę czasu.
 REASONING_EFFORT = "none"
 CHECKPOINT_EVERY = 10
 
-SYSTEM_PROMPT = """You are a product analyst. You read ONLY customer reviews of one automotive product and write a description of it for a recommender system.
-First work out what the product is from the reviews. Then describe what it is and what it is used for, its strengths and weaknesses according to the customers, and who it is for.
-Use only information that follows from the reviews; do not guess and do not add facts from outside them.
-Do not mention star ratings or popularity (no "best-selling", "highly rated", review counts) in the description.
+SYSTEM_PROMPT = """You are a product analyst. You read ONLY customer reviews of one automotive product. Your output is used by a recommender system to match this product with shoppers, so it must state precisely WHAT the product is, not only how good it is.
+First work out from the reviews:
+1. the product type and category (e.g. "h11 fog light bulb", "magnetic dashboard phone mount");
+2. the brand, product line or model, if reviewers name them;
+3. compatibility: vehicle makes, models and years, sizes, part numbers or standards that reviewers mention;
+4. what reviewers use it for and on which vehicles;
+5. concrete specifications reviewers mention (material, size, power, colour, pack quantity, included parts);
+6. only then the one or two most distinctive strengths or problems.
+Use only information that follows from the reviews; do not guess and do not add facts from outside them. If something is not mentioned, leave it out.
+Do not mention star ratings or popularity (no "best-selling", "highly rated", review counts).
 Return one JSON object with exactly these fields:
-- "description": 2-4 sentences, at most 80 words.
-- "features": 5-12 objects {"aspect": ..., "value": ...}, short lowercase labels (e.g. aspect "installation", value "easy").
+- "description": 2-4 sentences, at most 80 words, starting with the product type, then brand and compatibility, use, and distinctive points.
+- "features": 5-12 objects {"aspect": ..., "value": ...} with specific facts, short lowercase labels (e.g. aspect "product type", value "h11 fog light bulb"; aspect "compatible vehicles", value "2010-2015 toyota tacoma"). Prefer aspects such as product type, brand, compatible vehicles, size, use case, material, included parts. Avoid generic judgments such as "durability: variable", "installation: easy" or "quality: good"; use a judgment only when it is distinctive for this product.
 Write everything in English."""
 
 
@@ -43,7 +49,7 @@ class Feature(BaseModel):
     @field_validator("aspect", "value", mode="before")
     @classmethod
     def normalize(cls, value: Any) -> Any:
-        return value.lower().strip() if isinstance(value, str) else value
+        return value.lower().replace("_", " ").strip() if isinstance(value, str) else value
 
 
 class ItemDescription(BaseModel):
