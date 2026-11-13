@@ -34,3 +34,20 @@ Two-tower wybiera epokę na walidacji, więc jego wynik walidacyjny jest lekko z
 - Tekst `no_llm` zawiera markę, model, typ i dopasowanie do aut, czyli słowa najlepiej odróżniające produkty. Najwięcej traci TF-IDF (dopasowanie słów), najmniej two-tower (uczy się z historii).
 - 209 z 1500 tekstów `no_llm` przekracza 512 tokenów MiniLM i jest uciętych; teksty LLM mieszczą się w całości.
 - W odróżnieniu od większości literatury (KAR, LLMRec, ONCE) tekst LLM **zastępuje** opis sklepu zamiast go uzupełniać, a LLM nie dostaje tytułu.
+
+## Wersja 2 promptu — `gemma4:e2b` (2026-11-06)
+
+Prompt v2: najpierw typ produktu, marka, zgodność z pojazdami, zastosowanie i parametry, oceny ogólnikowe ograniczone (rejestr zmian protokołu, 2026-11-05). 1500 produktów, wszystkie za 1. próbą, średnio 6,0 s/produkt. Teksty LLM: mediana 154 tokeny MiniLM, maks. 276, nic nie ucięte. Two-tower: najlepsza epoka 8.
+
+Pliki: `data/item_texts/llm_gemma4_e2b/`, `data/models/`, `data/results_valid/`. Testu nie uruchamiano (zasada strojenia).
+
+### Walidacja (30 197 klientów), NDCG@10
+
+| Mechanizm | `no_llm` | v1 | v2 | Zmiana v2 vs `no_llm` | Przedział 98,33% | Wniosek | Strata v1 → v2 |
+|---|---|---|---|---|---|---|---|
+| TF-IDF | 0,0188 | 0,0149 | 0,0164 | −12% | −0,0035 … −0,0011 | pogorszenie | −21% → −12% |
+| MiniLM | 0,0173 | 0,0139 | 0,0169 | −2% | −0,0015 … +0,0008 | brak istotnej różnicy | −20% → −2% |
+| Two-tower | 0,0224 | 0,0210 | 0,0221 | −1% | −0,0014 … +0,0008 | brak istotnej różnicy | −6% → −1% |
+| popularność | 0,0193 | | | | | | |
+
+Wnioski: v2 jest wyraźnie lepszy od v1 w każdym mechanizmie. MiniLM i two-tower nie różnią się już istotnie od tekstu sklepu; TF-IDF nadal traci, ale o połowę mniej. Żaden mechanizm nie jest istotnie lepszy od `no_llm`. Porównanie v1 z v2 to różnica średnich (bez osobnego bootstrapu par v1–v2).
