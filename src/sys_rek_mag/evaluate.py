@@ -177,7 +177,7 @@ def evaluate_valid(paths: Paths = PATHS, seed: int = config.SEED) -> pd.DataFram
     """Ocena na okresie walidacyjnym; zapis osobno (results_valid/), żeby nie mieszać z wynikami testu."""
     per_user = per_user_metrics(paths, seed, split="valid")
     comparisons = compare(per_user, seed)
-    out = paths.root / "results_valid"
+    out = paths.results_valid
     write_csv(per_user.groupby(["variant", "mechanism"], sort=False)[list(METRICS)].mean().reset_index(),
               out / "metrics.csv")
     write_csv(comparisons, out / "comparisons.csv")
@@ -215,7 +215,7 @@ def main() -> None:
                         help="valid = strojenie na okresie walidacyjnym, wynik w data/results_valid/ (test bez zmian)")
     if parser.parse_args().split == "valid":
         comparisons = evaluate_valid()
-        print(f"Walidacja: wyniki w {PATHS.root / 'results_valid'}")
+        print(f"Walidacja: wyniki w {PATHS.results_valid}")
         print(comparisons[comparisons["role"].eq("primary")].to_string(index=False))
         return
     manifest = evaluate()

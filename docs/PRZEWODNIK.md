@@ -127,7 +127,8 @@ Te same pojęcia co w zakładce „Słownik” dashboardu (`src/sys_rek_mag/glos
 | `src/sys_rek_mag/recommend.py` | ranking i metryki jako czyste funkcje na macierzach |
 | `src/sys_rek_mag/two_tower.py` | etap `train`: sieć dwuwieżowa |
 | `src/sys_rek_mag/evaluate.py` | etap `evaluate`: metryki per użytkownik i bootstrap |
-| `src/sys_rek_mag/dashboard.py`, `glossary.py` | dashboard Streamlit i słownik pojęć |
+| `src/sys_rek_mag/dashboard.py`, `charts.py`, `glossary.py` | dashboard Streamlit (układ i tabele), wykresy Altair (czyste funkcje), słownik pojęć |
+| `.streamlit/config.toml` | domyślny jasny motyw dashboardu |
 | `tests/` | testy na sztucznych mini-danych, z fałszywym LLM i fałszywym enkoderem |
 
 ### Folder `data/` (nie trafia do gita)
@@ -173,7 +174,7 @@ cp .env.example .env    # uzupełnij LLM_HARDWARE, np. "RX 6600 8 GB, 15 GB RAM"
 uv run pytest           # testy: bez prawdziwych danych, bez LLM
 ```
 
-Wszystko uruchamiamy przez `uv run`. Do etapu LLM potrzebny jest działający serwer Ollama z modelem (`ollama pull gemma4:e2b`).
+Wszystko uruchamiamy przez `uv run`. Zmienna `SYSREKMAG_DATA_DIR` (w `.env` albo przed poleceniem) przestawia wszystkie etapy i dashboard na inny katalog danych, np. `SYSREKMAG_DATA_DIR=data/demo uv run streamlit run dashboard.py`; ścieżka względna liczy się od katalogu projektu. Przydaje się do pracy nad dashboardem na danych zastępczych bez ruszania `data/`. Do etapu LLM potrzebny jest działający serwer Ollama z modelem (`ollama pull gemma4:e2b`).
 
 ## 7. Etapy krok po kroku
 
@@ -188,7 +189,7 @@ Czasy to szacunki, nie pomiary (do uzupełnienia po pierwszym przebiegu).
 | `uv run sysrekmag-train` | sieć dwuwieżowa dla każdego aktualnego wariantu (nieaktualne foldery `models/` pomija) | `models/<wariant>/embeddings.npy`, `prepared/` | `models/<wariant>/two_tower*` | minuty na wariant | po `encode`; sam pomija aktualne modele |
 | `uv run sysrekmag-evaluate` | metryki i bootstrap | `prepared/`, `models/` | `data/results/` | minuty | po każdej zmianie wyżej; liczy zawsze od nowa |
 | `uv run sysrekmag-evaluate --split valid` | to samo na okresie walidacyjnym (do porównywania wersji promptu bez zaglądania w test) | `prepared/`, `models/` | `data/results_valid/` | minuty | po każdej nowej wersji promptu |
-| `uv run streamlit run dashboard.py` | przeglądanie wyników | `data/results/`, `models/`, `item_texts/` | nic | — | kiedy chcesz |
+| `uv run streamlit run dashboard.py` | przeglądanie wyników | `data/results/`, `data/results_valid/`, `models/`, `item_texts/` | nic | — | kiedy chcesz |
 
 **`prepare` — opcje.** `--items N` zmienia liczbę produktów (domyślnie `N_ITEMS` z `config.py`), `--subcategory <nazwa>` ogranicza próbkę do jednej podkategorii. Na końcu wypisuje: liczbę produktów, interakcji w każdym okresie, użytkowników i użytkowników ewaluacyjnych. Jeśli ewaluacyjnych jest mniej niż 500, wypisze `UWAGA: tylko … użytkowników ewaluacyjnych (< 500)` i listę podkategorii. Decyzję o `--subcategory` podejmujesz **raz, przed jakąkolwiek metryką**, i wpisujesz do rejestru zmian protokołu.
 
@@ -256,10 +257,11 @@ uv run sysrekmag-llm-texts --model gemma4:e2b --limit 20
 
 `uv run streamlit run dashboard.py`. Dashboard **nie wywołuje LLM**; w zakładce „Mój profil” używa tylko enkodera MiniLM.
 
-- **Panel boczny:** „Model LLM” (który wariant `llm_*` pokazać w „Mój profil”), „Mechanizm”, „Liczba rekomendacji N” (5 albo 10).
-- **Wyniki:** tabela metryk wszystkich wariantów dla wybranego mechanizmu (plus popularność), wykres NDCG@10 i wykres „Różnica NDCG@10 względem bez LLM (przedział ufności)”: kropka to średnia różnica, kreska to przedział, przerywana linia to zero. Kreska w całości na prawo od zera = poprawa.
+- **Panel boczny:** pod nagłówkiem numer wersji panelu (`DASHBOARD_VERSION` w `dashboard.py`; każda zmiana dashboardu podnosi go o 0.1), potem „Dane do oceny” (Test = `data/results/`, wynik końcowy; Walidacja = `data/results_valid/`, strojenie promptu; domyślnie pierwsze, które mają wyniki), „Model LLM” (wariant `llm_*`), „Mechanizm rekomendacyjny”. Cała strona pokazuje wyniki dla tego wyboru.
+- **Wyniki** (od góry): ramka „Co tu porównujemy”; kafelki z NDCG@10 dla tekstu sklepu, opisu z LLM (ze zmianą w %) i najpopularniejszych produktów oraz odpowiedź „Czy LLM pomaga?”; „Wszystkie metryki” (panel na metrykę, każdy z własną osią, przełącznik K = 5/10); „O ile opis z LLM zmienia wynik”: względna zmiana każdej metryki z przedziałem ufności (kropka = zmiana, kreska = przedział, przerywana linia = zero; kreska w całości na prawo od zera = poprawa; kolor = wniosek); „Wszystkie mechanizmy naraz” (NDCG@10 dla wszystkich mechanizmów, linia przerywana = popularność); „Tabela wyników” z pobraniem CSV (średnik, przecinek dziesiętny, otwiera się w polskim Excelu).
+- **Do pracy:** dashboard domyślnie ma jasny motyw (białe tło); przełączanie: menu ⋮ → Settings → Theme. Wykresy mają styl publikacyjny: zawsze białe tło (także w trybie ciemnym), czcionka szeryfowa (Times New Roman), osie w kształcie „L”, słupki w odcieniach szarości z czarnym obrysem (najpopularniejsze produkty białe), wniosek oznaczony kształtem i wypełnieniem znacznika; wszystko czytelne w druku czarno-białym, przecinek dziesiętny. Wykresy nie mają tytułów, bo podpis „Rys. …” dodaje się w dokumencie.
 - **Koszt LLM:** liczba opisów, średni i medianowy czas generowania, sprzęt, serwer.
-- **Mój profil:** wpisz po angielsku, czego szukasz (np. `bright LED bulbs for headlights`). Zobaczysz top N obok siebie: „bez LLM” i „z LLM”, z opisem LLM do rozwinięcia. To demonstracja, nie metryka.
+- **Mój profil:** wpisz po angielsku, czego szukasz (np. `bright LED bulbs for headlights`). Mechanizm z panelu bocznego, liczba rekomendacji N (5 albo 10) w zakładce. Zobaczysz top N obok siebie: „bez LLM” i „z LLM”, z opisem LLM do rozwinięcia. To demonstracja, nie metryka.
 - **Słownik:** pojęcia z rozdziału 4.
 
 ### `data/results/comparisons/comparisons.csv`

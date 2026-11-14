@@ -8,7 +8,7 @@ GLOSSARY: dict[str, str] = {
     "TF-IDF": "Zliczanie słów: słowo, które jest w tekście produktu często, a w całym katalogu rzadko, waży najwięcej. Np. „halogen” wskaże żarówki, a „the” nic nie znaczy.",
     "embedding": "Zamiana tekstu na listę liczb tak, by podobne znaczeniowo teksty dawały podobne liczby. „Bright LED bulb” i „white LED lamp” będą blisko siebie, choć mają różne słowa.",
     "sieć dwuwieżowa": "Mała sieć neuronowa z dwiema „wieżami”: jedna zamienia historię użytkownika, druga produkt, na wspólne wektory. Im bardziej wektory są zgodne, tym wyżej produkt w rankingu.",
-    "popularność": "Punkt odniesienia bez tekstu: wszystkim polecamy te same produkty, najczęściej kupowane w okresie treningowym, np. popularną żarówkę czy wycieraczki.",
+    "najpopularniejsze produkty (popularność)": "Punkt odniesienia bez tekstu: wszystkim polecamy te same produkty, najczęściej kupowane w okresie treningowym, np. popularną żarówkę czy wycieraczki.",
     "NDCG@k": "Główna metryka (0–1, więcej znaczy lepiej). Nagradza trafienia w pierwszych k pozycjach i bardziej te wyżej: trafiona wycieraczka na miejscu 1 jest warta więcej niż na miejscu 9.",
     "precyzja@k": "Jaka część k poleconych produktów faktycznie spodobała się użytkownikowi. 2 trafienia w 10 polecanych daje 0,2.",
     "czułość@k": "Jaka część produktów, które użytkownik polubił w okresie testowym, trafiła do pierwszych k. Z 4 polubionych 2 w top 10 daje 0,5.",

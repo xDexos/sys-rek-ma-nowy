@@ -23,7 +23,8 @@ def _load_env_file(path: Path) -> None:
 
 _load_env_file(PROJECT_ROOT / ".env")
 
-DATA_DIR = PROJECT_ROOT / "data"
+# Inny katalog danych (np. data/demo do pracy nad dashboardem); ścieżka względna liczona od katalogu projektu
+DATA_DIR = PROJECT_ROOT / os.getenv("SYSREKMAG_DATA_DIR", "data")
 
 # --- dane ---
 AMAZON_BASE = "https://mcauleylab.ucsd.edu/public_datasets/data/amazon_2023"
@@ -95,6 +96,10 @@ class Paths:
     @property
     def results_root(self) -> Path:
         return self.root / "results"
+
+    @property
+    def results_valid(self) -> Path:
+        return self.root / "results_valid"
 
     @property
     def comparisons(self) -> Path:

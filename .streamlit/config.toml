@@ -1,0 +1,3 @@
+# Domyślnie jasny motyw (białe tło do zrzutów ekranu do pracy); przełączanie: menu ⋮ → Settings → Theme
+[theme]
+base = "light"
